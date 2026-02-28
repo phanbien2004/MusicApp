@@ -1,35 +1,139 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
-
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Tabs, usePathname } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { BottomTabBar } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import MiniPlayer from '@/components/mini-player';
+import { PlayerProvider, usePlayer } from '@/context/player-context';
 import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+
+const MAIN_TABS = ['home', 'search', 'jam', 'profile'];
+
+function TabLayoutInner() {
+    const insets = useSafeAreaInsets();
+    const tabBarHeight = 60 + insets.bottom;
+    const pathname = usePathname();
+    // Tất cả màn hình ẩn (href: null) — cần giữ tab cuối sáng
+    const HIDDEN_SCREENS = ['currentsong', 'setupjam', 'joinjam', 'notifications', 'jamroom', 'jamnotification', 'jamsettings', 'registerartist'];
+    const isHiddenScreen = HIDDEN_SCREENS.some(s => pathname.includes(s));
+
+    // Lấy lastActiveTab từ context thay vì local state
+    const { lastActiveTab, setLastActiveTab } = usePlayer();
+
+    return (
+        <Tabs
+            screenListeners={{
+                // Mỗi lần focus vào 1 trong 4 tab chính → lưu lại
+                focus: (e) => {
+                    const routeName = (e.target as string)?.split('-')[0];
+                    if (MAIN_TABS.includes(routeName)) {
+                        setLastActiveTab(routeName);
+                    }
+                },
+            }}
+            tabBar={(props) => {
+                // Khi ở màn hình ẩn: giữ tab cuối sáng, ẩn MiniPlayer
+                const customState = isHiddenScreen
+                    ? {
+                        ...props.state,
+                        index: props.state.routes.findIndex(
+                            (r) => r.name === lastActiveTab
+                        ),
+                    }
+                    : props.state;
+
+                return (
+                    <>
+                        {!isHiddenScreen && <MiniPlayer />}
+                        <BottomTabBar {...props} state={customState} />
+                    </>
+                );
+            }}
+            screenOptions={{
+                headerShown: false,
+                tabBarActiveTintColor: Colors.teal,
+                tabBarInactiveTintColor: Colors.gray,
+                tabBarStyle: {
+                    backgroundColor: Colors.tabBar,
+                    borderTopColor: Colors.border,
+                    borderTopWidth: 1,
+                    height: tabBarHeight,
+                    paddingBottom: insets.bottom + 6,
+                    paddingTop: 6,
+                },
+                tabBarLabelStyle: {
+                    fontSize: 10,
+                    fontWeight: '600',
+                    letterSpacing: 0.5,
+                },
+            }}>
+            <Tabs.Screen
+                name="home"
+                options={{
+                    title: 'HOME',
+                    tabBarIcon: ({ color }) => <Ionicons name="home" size={24} color={color} />,
+                }}
+            />
+            <Tabs.Screen
+                name="search"
+                options={{
+                    title: 'SEARCH',
+                    tabBarIcon: ({ color }) => <Ionicons name="search" size={24} color={color} />,
+                }}
+            />
+            <Tabs.Screen
+                name="jam"
+                options={{
+                    title: 'JAM',
+                    tabBarIcon: ({ color }) => <Ionicons name="people" size={24} color={color} />,
+                }}
+            />
+            <Tabs.Screen
+                name="profile"
+                options={{
+                    title: 'PROFILE',
+                    tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} />,
+                }}
+            />
+            <Tabs.Screen
+                name="currentsong"
+                options={{ href: null, headerShown: false }}
+            />
+            <Tabs.Screen
+                name="notifications"
+                options={{ href: null, headerShown: false }}
+            />
+            <Tabs.Screen
+                name="setupjam"
+                options={{ href: null, headerShown: false }}
+            />
+            <Tabs.Screen
+                name="joinjam"
+                options={{ href: null, headerShown: false }}
+            />
+            <Tabs.Screen
+                name="jamroom"
+                options={{ href: null, headerShown: false }}
+            />
+            <Tabs.Screen
+                name="jamnotification"
+                options={{ href: null, headerShown: false }}
+            />
+            <Tabs.Screen
+                name="jamsettings"
+                options={{ href: null, headerShown: false }}
+            />
+            <Tabs.Screen
+                name="registerartist"
+                options={{ href: null, headerShown: false }}
+            />
+        </Tabs>
+    );
+}
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
-  return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
-    </Tabs>
-  );
+    return (
+        <PlayerProvider>
+            <TabLayoutInner />
+        </PlayerProvider>
+    );
 }
