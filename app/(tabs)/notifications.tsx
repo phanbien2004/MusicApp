@@ -1,17 +1,17 @@
+import { Colors } from '@/constants/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    View,
-    Text,
     FlatList,
-    TouchableOpacity,
-    StyleSheet,
+    Platform,
     SafeAreaView,
     StatusBar,
-    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { Colors } from '@/constants/theme';
 
 interface Notification {
     id: string;
@@ -86,6 +86,10 @@ export default function NotificationsScreen() {
             case 'follow': return 'person';
         }
     };
+
+    useFocusEffect(() =>{
+        console.log('Active notifications');
+    });
 
     // Chỉ jam và friend request mới cần nút Accept/Reject
     const hasActions = (type: Notification['type']) =>

@@ -1,60 +1,75 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Colors } from '@/constants/theme';
+import { useCurrentSong } from '@/context/currentSong-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Colors } from '@/constants/theme';
+import React from 'react';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-interface MiniPlayerProps {
-    title?: string;
-    artist?: string;
-    onPlayPause?: () => void;
-    onNext?: () => void;
-}
-
-export default function MiniPlayer({
-    title = 'Em của ngày hôm qua',
-    artist = 'Sơn Tùng MTP',
-    onPlayPause,
-    onNext,
-}: MiniPlayerProps) {
+export default function MiniPlayer() {
     const router = useRouter();
-    const [isPlaying, setIsPlaying] = useState(true);
+    const context = useCurrentSong();
 
+    // 1. Kiểm tra nếu context chưa được khởi tạo hoặc không có bài hát
+    if (!context || !context.currentSong) {
+        return null; // Không hiển thị gì nếu chưa chọn bài
+    }
+
+    const { currentSong, isPlaying, setIsPlaying } = context;
+
+    // 2. Hàm xử lý Play/Pause
     const handlePlayPause = () => {
         setIsPlaying(!isPlaying);
-        onPlayPause?.();
     };
 
     return (
         <View style={styles.wrapper}>
             <TouchableOpacity
                 style={styles.container}
-                activeOpacity={0.85}
+                activeOpacity={0.9}
                 onPress={() => router.push('/(tabs)/currentsong')}>
-                {/* Thumbnail */}
+                
+                {/* Thumbnail - Hiển thị artwork nếu có, không thì hiện icon mặc định */}
                 <View style={styles.thumbnail}>
-                    <Ionicons name="musical-notes" size={16} color={Colors.teal} />
+                    {currentSong.artwork ? (
+                        <Image 
+                            source={{ uri: currentSong.artwork }} 
+                            style={styles.artworkImage} 
+                        />
+                    ) : (
+                        <Ionicons name="musical-notes" size={18} color={Colors.teal} />
+                    )}
                 </View>
 
-                {/* Song info */}
+                {/* Song info lấy từ Context */}
                 <View style={styles.songInfo}>
-                    <Text style={styles.songTitle} numberOfLines={1}>{title}</Text>
-                    <Text style={styles.songArtist} numberOfLines={1}>{artist}</Text>
+                    <Text style={styles.songTitle} numberOfLines={1}>
+                        {currentSong.title || 'Unknown Title'}
+                    </Text>
+                    <Text style={styles.songArtist} numberOfLines={1}>
+                        {currentSong.artist || 'Unknown Artist'}
+                    </Text>
                 </View>
 
                 {/* Controls */}
                 <View style={styles.controls}>
                     <TouchableOpacity
-                        onPress={(e) => { e.stopPropagation?.(); handlePlayPause(); }}
+                        onPress={(e) => {
+                            e.stopPropagation(); // Ngăn sự kiện nhấn vào container (mở màn hình full)
+                            handlePlayPause();
+                        }}
                         style={styles.controlBtn}>
                         <Ionicons
                             name={isPlaying ? 'pause' : 'play'}
-                            size={22}
+                            size={24}
                             color={Colors.white}
                         />
                     </TouchableOpacity>
+                    
                     <TouchableOpacity
-                        onPress={(e) => { e.stopPropagation?.(); onNext?.(); }}
+                        onPress={(e) => {
+                            e.stopPropagation();
+                            // Logic Next bài hát sẽ thêm ở đây sau
+                        }}
                         style={styles.controlBtn}>
                         <Ionicons name="play-skip-forward" size={22} color={Colors.white} />
                     </TouchableOpacity>
@@ -66,57 +81,65 @@ export default function MiniPlayer({
 
 const styles = StyleSheet.create({
     wrapper: {
-        paddingHorizontal: 12,
-        paddingVertical: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
         backgroundColor: Colors.tabBar,
+        borderTopWidth: 0.5,
+        borderTopColor: '#222',
     },
     container: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#252525',
-        borderRadius: 14,
-        paddingHorizontal: 12,
+        borderRadius: 12,
+        paddingHorizontal: 10,
         paddingVertical: 8,
-        borderWidth: 1,
-        borderColor: '#333',
-        // Shadow Android
-        elevation: 8,
+        // Shadow cho iOS/Android
+        elevation: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
     },
     thumbnail: {
-        width: 38,
-        height: 38,
-        borderRadius: 10,
+        width: 42,
+        height: 42,
+        borderRadius: 8,
         backgroundColor: '#1A1A1A',
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 10,
+        marginRight: 12,
+        overflow: 'hidden',
         borderWidth: 1,
-        borderColor: Colors.teal,
+        borderColor: '#333',
+    },
+    artworkImage: {
+        width: '100%',
+        height: '100%',
     },
     songInfo: {
         flex: 1,
-        marginRight: 8,
+        justifyContent: 'center',
     },
     songTitle: {
         color: Colors.white,
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: '700',
-        marginBottom: 2,
+        marginBottom: 1,
     },
     songArtist: {
         color: Colors.gray,
-        fontSize: 11,
+        fontSize: 12,
     },
     controls: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
+        gap: 6,
     },
     controlBtn: {
-        width: 36,
-        height: 36,
+        width: 40,
+        height: 40,
         alignItems: 'center',
         justifyContent: 'center',
-        borderRadius: 18,
     },
 });

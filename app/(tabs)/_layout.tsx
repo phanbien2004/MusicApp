@@ -1,10 +1,12 @@
-import { Tabs, usePathname } from 'expo-router';
+import MiniPlayer from '@/components/mini-player';
+import { Colors } from '@/constants/theme';
+import { PlayerProvider, usePlayer } from '@/context/player-context';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomTabBar } from '@react-navigation/bottom-tabs';
+import { Tabs, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import MiniPlayer from '@/components/mini-player';
-import { PlayerProvider, usePlayer } from '@/context/player-context';
-import { Colors } from '@/constants/theme';
+
+import { CurrentSongProvider } from '@/context/currentSong-context';
 
 const MAIN_TABS = ['home', 'search', 'jam', 'profile'];
 
@@ -133,7 +135,9 @@ function TabLayoutInner() {
 export default function TabLayout() {
     return (
         <PlayerProvider>
-            <TabLayoutInner />
+            <CurrentSongProvider>
+                <TabLayoutInner />
+            </CurrentSongProvider>
         </PlayerProvider>
     );
 }

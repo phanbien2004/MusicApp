@@ -1,19 +1,20 @@
-import React, { useState } from 'react';
-import {
-    View,
-    Text,
-    TextInput,
-    StyleSheet,
-    SafeAreaView,
-    StatusBar,
-    Platform,
-    TouchableOpacity,
-    FlatList,
-    ScrollView,
-} from 'react-native';
+import { Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Colors } from '@/constants/theme';
+import React, { useState } from 'react';
+import {
+    FlatList,
+    Platform,
+    SafeAreaView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
+
+import { Song, useCurrentSong } from '@/context/currentSong-context';
 
 type Category = 'All' | 'Songs' | 'Albums' | 'Artists' | 'Users';
 
@@ -51,6 +52,22 @@ export default function SearchScreen() {
     const [activeCategory, setActiveCategory] = useState<Category>('Songs');
     const [followedIds, setFollowedIds] = useState<Set<string>>(new Set());
     const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+
+    const { setCurrentSong } = useCurrentSong()!;
+
+    const handleSelectSong = (item: SearchResult) => {
+        // Chỉ xử lý nếu type là 'Songs'
+        if (item.type === 'Songs') {
+            const songData: Song = {
+                id: item.id,
+                title: item.title,
+                artist: item.subtitle,
+                url: '', // Sau này map với URL từ API
+                duration: item.duration,
+            };
+            setCurrentSong(songData); // Cập nhật bài hát vào context toàn cục
+        }
+    };
 
     const toggleFollow = (id: string) => {
         setFollowedIds(prev => {
@@ -150,7 +167,10 @@ export default function SearchScreen() {
                     </View>
                 }
                 renderItem={({ item }) => (
-                    <TouchableOpacity style={styles.resultItem}>
+                    <TouchableOpacity 
+                        style={styles.resultItem}
+                        onPress={() => handleSelectSong(item)}
+                    >
                         {/* Thumbnail */}
                         <View style={[
                             styles.thumbnail,
