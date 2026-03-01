@@ -108,7 +108,11 @@ export default function ProfileScreen() {
 
                 <View style={styles.playlistsGrid}>
                     {playlists.map(item => (
-                        <TouchableOpacity key={item.id} style={styles.playlistCard}>
+                        <TouchableOpacity 
+                            key={item.id} 
+                            style={styles.playlistCard} 
+                            onPress={() => router.push(`/list` as any)}
+                        >
                             <View style={[styles.playlistThumb, { backgroundColor: item.color }]} />
                             <Text style={styles.playlistName}>{item.name}</Text>
                         </TouchableOpacity>

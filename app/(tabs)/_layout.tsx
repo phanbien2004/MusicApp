@@ -132,6 +132,10 @@ function TabLayoutInner() {
                 name="addlist"
                 options={{ href: null, headerShown: false }}
             />
+            <Tabs.Screen
+                name="list"
+                options={{ href: null, headerShown: false }}
+            />
         </Tabs>
     );
 }
