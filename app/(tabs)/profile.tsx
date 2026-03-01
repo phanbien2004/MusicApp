@@ -1,19 +1,19 @@
-import React, { useState } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    SafeAreaView,
-    StatusBar,
-    Platform,
-    TouchableOpacity,
-    ScrollView,
-    Dimensions,
-} from 'react-native';
+import { Colors } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@/context/auth-context';
-import { Colors } from '@/constants/theme';
+import React from 'react';
+import {
+    Dimensions,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 
 const { width } = Dimensions.get('window');
 const PLAYLIST_CARD = (width - 48 - 12) / 2;
@@ -99,7 +99,10 @@ export default function ProfileScreen() {
                 <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>My Playlists</Text>
                     <TouchableOpacity style={styles.addBtn}>
-                        <Ionicons name="add" size={22} color={Colors.white} />
+                        <Ionicons 
+                            name="add" size={22} color={Colors.white}
+                            onPress={() => router.push('/(tabs)/addlist' as any)} 
+                        />
                     </TouchableOpacity>
                 </View>
 

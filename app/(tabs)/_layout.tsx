@@ -15,7 +15,7 @@ function TabLayoutInner() {
     const tabBarHeight = 60 + insets.bottom;
     const pathname = usePathname();
     // Tất cả màn hình ẩn (href: null) — cần giữ tab cuối sáng
-    const HIDDEN_SCREENS = ['currentsong', 'setupjam', 'joinjam', 'notifications', 'jamroom', 'jamnotification', 'jamsettings', 'registerartist'];
+    const HIDDEN_SCREENS = ['currentsong', 'setupjam', 'joinjam', 'notifications', 'jamroom', 'jamnotification', 'jamsettings', 'registerartist', 'addlist'];
     const isHiddenScreen = HIDDEN_SCREENS.some(s => pathname.includes(s));
 
     // Lấy lastActiveTab từ context thay vì local state
@@ -126,6 +126,10 @@ function TabLayoutInner() {
             />
             <Tabs.Screen
                 name="registerartist"
+                options={{ href: null, headerShown: false }}
+            />
+            <Tabs.Screen
+                name="addlist"
                 options={{ href: null, headerShown: false }}
             />
         </Tabs>
