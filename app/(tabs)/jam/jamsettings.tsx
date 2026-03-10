@@ -1,17 +1,17 @@
-import React, { useState } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    SafeAreaView,
-    StatusBar,
-    Platform,
-    TouchableOpacity,
-    Switch,
-} from 'react-native';
+import { Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Colors } from '@/constants/theme';
+import React, { useState } from 'react';
+import {
+    Platform,
+    SafeAreaView,
+    StatusBar,
+    StyleSheet,
+    Switch,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 
 const avatarColors = ['#555', '#6D28D9', '#4C1D95'];
 const peopleCounts = ['02', '04', '06', '08', '10'];
@@ -49,12 +49,12 @@ export default function JamSettingsScreen() {
                 <View style={styles.iconsGroup}>
                     <TouchableOpacity
                         style={styles.iconBtn}
-                        onPress={() => router.push('/(tabs)/jamroom' as any)}>
+                        onPress={() => router.push('/(tabs)/jam/jamroom' as any)}>
                         <Ionicons name="person-add-outline" size={20} color={Colors.teal} />
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.iconBtn}
-                        onPress={() => router.push('/(tabs)/jamnotification' as any)}>
+                        onPress={() => router.push('/(tabs)/jam/jamnotification' as any)}>
                         <Ionicons name="notifications-outline" size={20} color={Colors.teal} />
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.iconBtn, { backgroundColor: Colors.teal + '33' }]}>

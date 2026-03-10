@@ -44,7 +44,7 @@ export default function ProfileScreen() {
                             style={styles.iconBtn}
                             onPress={() => {
                                 logout();
-                                router.replace('/login');
+                                router.replace('/login' as any);
                             }}>
                             <Ionicons name="settings-outline" size={22} color={Colors.white} />
                         </TouchableOpacity>
@@ -88,7 +88,7 @@ export default function ProfileScreen() {
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={styles.artistBtn}
-                            onPress={() => router.push('/(tabs)/registerartist' as any)}>
+                            onPress={() => router.push('/(tabs)/profile/registerartist' as any)}>
                             <Ionicons name="musical-notes-outline" size={16} color={Colors.white} />
                             <Text style={styles.artistBtnText}>Register Artist</Text>
                         </TouchableOpacity>
@@ -98,20 +98,19 @@ export default function ProfileScreen() {
                 {/* ─── MY PLAYLISTS ─── */}
                 <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>My Playlists</Text>
-                    <TouchableOpacity style={styles.addBtn}>
-                        <Ionicons 
-                            name="add" size={22} color={Colors.white}
-                            onPress={() => router.push('/(tabs)/addlist' as any)} 
-                        />
+                    <TouchableOpacity
+                        style={styles.addBtn}
+                        onPress={() => router.push('/(tabs)/profile/addlist' as any)}>
+                        <Ionicons name="add" size={22} color={Colors.white} />
                     </TouchableOpacity>
                 </View>
 
                 <View style={styles.playlistsGrid}>
                     {playlists.map(item => (
-                        <TouchableOpacity 
-                            key={item.id} 
-                            style={styles.playlistCard} 
-                            onPress={() => router.push(`/list` as any)}
+                        <TouchableOpacity
+                            key={item.id}
+                            style={styles.playlistCard}
+                            onPress={() => router.push('/(tabs)/profile/list' as any)}
                         >
                             <View style={[styles.playlistThumb, { backgroundColor: item.color }]} />
                             <Text style={styles.playlistName}>{item.name}</Text>

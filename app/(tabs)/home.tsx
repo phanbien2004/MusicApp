@@ -1,17 +1,17 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  StatusBar,
-  Platform,
-} from 'react-native';
+import { Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Colors } from '@/constants/theme';
+import React, { useState } from 'react';
+import {
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 const friendsData = [
   {
@@ -105,12 +105,10 @@ export default function HomeScreen() {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={[styles.friendsScroll, { alignItems: 'flex-start' }]}>
-          {friendsData.map((friend, index) => (
+          {friendsData.map((friend) => (
             <TouchableOpacity
               key={friend.id}
-              style={[
-                styles.friendCard,
-              ]}>
+              style={styles.friendCard}>
               <View style={styles.avatarWrapper}>
                 <View style={styles.avatar}>
                   <Ionicons name="person" size={22} color={Colors.gray} />

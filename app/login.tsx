@@ -1,24 +1,24 @@
+import { Colors } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
+import { loginAPI } from '@/services/authService';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    View,
+    ActivityIndicator,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    StyleSheet,
-    SafeAreaView,
-    StatusBar,
-    Platform,
-    KeyboardAvoidingView,
-    ScrollView,
-    Image,
-    ActivityIndicator,
+    View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useAuth } from '@/context/auth-context';
-import { loginAPI } from '@/services/authService';
-import { Colors } from '@/constants/theme';
 
 export default function LoginScreen() {
     const router = useRouter();
@@ -50,7 +50,7 @@ export default function LoginScreen() {
             }
             else {
                 login(res.accessToken, res.refreshToken);
-                router.replace('/(tabs)/home');
+                router.replace('/(tabs)/home' as any);
             }
         } catch (err: any) {
             setError(err?.message || 'Account not found!');
@@ -156,7 +156,7 @@ export default function LoginScreen() {
                     {/* ─── SIGN UP LINK ─── */}
                     <View style={styles.signupRow}>
                         <Text style={styles.signupHint}>DON'T HAVE AN ACCOUNT? </Text>
-                        <TouchableOpacity onPress={() => router.push('/signup')}>
+                        <TouchableOpacity onPress={() => router.push('/signup' as any)}>
                             <Text style={styles.signupLink}>SIGN UP</Text>
                         </TouchableOpacity>
                     </View>

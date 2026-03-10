@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
     FlatList,
     Platform,
@@ -87,9 +87,11 @@ export default function NotificationsScreen() {
         }
     };
 
-    useFocusEffect(() =>{
-        console.log('Active notifications');
-    });
+    useFocusEffect(
+        useCallback(() => {
+            console.log('Active notifications');
+        }, [])
+    );
 
     // Chỉ jam và friend request mới cần nút Accept/Reject
     const hasActions = (type: Notification['type']) =>

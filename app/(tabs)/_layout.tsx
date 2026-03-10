@@ -15,7 +15,7 @@ function TabLayoutInner() {
     const tabBarHeight = 60 + insets.bottom;
     const pathname = usePathname();
     // Tất cả màn hình ẩn (href: null) — cần giữ tab cuối sáng
-    const HIDDEN_SCREENS = ['currentsong', 'setupjam', 'joinjam', 'notifications', 'jamroom', 'jamnotification', 'jamsettings', 'registerartist', 'addlist'];
+    const HIDDEN_SCREENS = ['player/currentsong', 'jam/setupjam', 'jam/joinjam', 'notifications', 'jam/jamroom', 'jam/jamnotification', 'jam/jamsettings', 'profile/registerartist', 'profile/addlist'];
     const isHiddenScreen = HIDDEN_SCREENS.some(s => pathname.includes(s));
 
     // Lấy lastActiveTab từ context thay vì local state
@@ -97,7 +97,7 @@ function TabLayoutInner() {
                 }}
             />
             <Tabs.Screen
-                name="currentsong"
+                name="player/currentsong"
                 options={{ href: null, headerShown: false }}
             />
             <Tabs.Screen
@@ -105,35 +105,35 @@ function TabLayoutInner() {
                 options={{ href: null, headerShown: false }}
             />
             <Tabs.Screen
-                name="setupjam"
+                name="jam/setupjam"
                 options={{ href: null, headerShown: false }}
             />
             <Tabs.Screen
-                name="joinjam"
+                name="jam/joinjam"
                 options={{ href: null, headerShown: false }}
             />
             <Tabs.Screen
-                name="jamroom"
+                name="jam/jamroom"
                 options={{ href: null, headerShown: false }}
             />
             <Tabs.Screen
-                name="jamnotification"
+                name="jam/jamnotification"
                 options={{ href: null, headerShown: false }}
             />
             <Tabs.Screen
-                name="jamsettings"
+                name="jam/jamsettings"
                 options={{ href: null, headerShown: false }}
             />
             <Tabs.Screen
-                name="registerartist"
+                name="profile/registerartist"
                 options={{ href: null, headerShown: false }}
             />
             <Tabs.Screen
-                name="addlist"
+                name="profile/addlist"
                 options={{ href: null, headerShown: false }}
             />
             <Tabs.Screen
-                name="list"
+                name="profile/list"
                 options={{ href: null, headerShown: false }}
             />
         </Tabs>

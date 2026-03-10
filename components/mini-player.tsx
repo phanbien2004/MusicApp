@@ -26,14 +26,14 @@ export default function MiniPlayer() {
             <TouchableOpacity
                 style={styles.container}
                 activeOpacity={0.9}
-                onPress={() => router.push('/(tabs)/currentsong')}>
-                
+                onPress={() => router.push('/(tabs)/player/currentsong' as any)}>
+
                 {/* Thumbnail - Hiển thị artwork nếu có, không thì hiện icon mặc định */}
                 <View style={styles.thumbnail}>
                     {currentSong.artwork ? (
-                        <Image 
-                            source={{ uri: currentSong.artwork }} 
-                            style={styles.artworkImage} 
+                        <Image
+                            source={{ uri: currentSong.artwork }}
+                            style={styles.artworkImage}
                         />
                     ) : (
                         <Ionicons name="musical-notes" size={18} color={Colors.teal} />
@@ -64,7 +64,7 @@ export default function MiniPlayer() {
                             color={Colors.white}
                         />
                     </TouchableOpacity>
-                    
+
                     <TouchableOpacity
                         onPress={(e) => {
                             e.stopPropagation();

@@ -1,24 +1,22 @@
-import React, { useState, useRef } from 'react';
-import { PanResponder } from 'react-native';
+import { Colors } from '@/constants/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import React, { useRef, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
+    Animated,
+    Dimensions,
+    FlatList,
+    PanResponder,
+    Platform,
     SafeAreaView,
     StatusBar,
-    Platform,
-    TouchableOpacity,
-    Dimensions,
-    Animated,
-    TouchableWithoutFeedback,
-    FlatList,
-    ScrollView,
+    StyleSheet,
     Switch,
+    Text,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { Colors } from '@/constants/theme';
 
 const { width, height } = Dimensions.get('window');
 const ALBUM_SIZE = width * 0.62;

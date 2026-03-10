@@ -1,25 +1,25 @@
+import { Colors } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
+import { registerAPI } from '@/services/authService';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    StyleSheet,
-    SafeAreaView,
-    StatusBar,
-    Platform,
-    KeyboardAvoidingView,
-    ScrollView,
-    Image,
-    Alert,
-    ActivityIndicator,
+    View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useAuth } from '@/context/auth-context';
-import { registerAPI } from '@/services/authService';
-import { Colors } from '@/constants/theme';
 
 export default function SignupScreen() {
     const router = useRouter();
@@ -198,7 +198,7 @@ export default function SignupScreen() {
                     {/* ─── LOGIN LINK ─── */}
                     <View style={styles.loginRow}>
                         <Text style={styles.loginHint}>ALREADY HAVE AN ACCOUNT? </Text>
-                        <TouchableOpacity onPress={() => router.push('/login')}>
+                        <TouchableOpacity onPress={() => router.push('/login' as any)}>
                             <Text style={styles.loginLink}>LOGIN</Text>
                         </TouchableOpacity>
                     </View>

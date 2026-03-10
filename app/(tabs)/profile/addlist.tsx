@@ -10,15 +10,15 @@ export default function AddListScreen() {
     return (
         <View style={styles.container}>
             {/* Đưa icon vào TouchableOpacity để có thể bấm được */}
-            <TouchableOpacity 
-                style={styles.closeButton} 
-                onPress={() => router.push('/(tabs)/profile')} // Quay lại màn hình trước
+            <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => router.back()} // Quay lại màn hình trước
             >
                 <Ionicons name="close" size={28} color={Colors.white} />
             </TouchableOpacity>
 
             <Text style={styles.text}>New Playlist</Text>
-            
+
             <TextInput
                 style={styles.input}
                 placeholder="Enter playlist name"
@@ -26,7 +26,7 @@ export default function AddListScreen() {
                 autoFocus={true} // Tự động hiện bàn phím khi vào màn hình
             />
 
-            <TouchableOpacity style={styles.createBtn} onPress={() => router.push('/(tabs)/profile')}>
+            <TouchableOpacity style={styles.createBtn} onPress={() => router.back()}>
                 <Text style={styles.createBtnText}>Create</Text>
             </TouchableOpacity>
         </View>
@@ -56,20 +56,20 @@ const styles = StyleSheet.create({
     },
     input: {
         marginTop: 20,
-        width: "80%", 
+        width: "80%",
         textAlign: "center",
         color: "#fff",
         fontSize: 24,
         fontWeight: "bold",
         borderBottomWidth: 2,
-        borderBottomColor: Colors.white, 
+        borderBottomColor: Colors.white,
         paddingBottom: 10,
     },
     createBtn: {
         marginTop: 40,
         backgroundColor: Colors.teal, // Sử dụng màu teal cho đồng bộ app nhạc
         paddingHorizontal: 50,
-        paddingVertical: 14,    
+        paddingVertical: 14,
         borderRadius: 25, // Bo tròn hơn cho hiện đại
     },
     createBtnText: {

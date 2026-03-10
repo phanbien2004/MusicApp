@@ -1,16 +1,16 @@
-import React from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    SafeAreaView,
-    StatusBar,
-    Platform,
-    TouchableOpacity,
-} from 'react-native';
+import { Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Colors } from '@/constants/theme';
+import React from 'react';
+import {
+    Platform,
+    SafeAreaView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 
 export default function JamScreen() {
     const router = useRouter();
@@ -35,7 +35,7 @@ export default function JamScreen() {
                 <TouchableOpacity
                     style={styles.card}
                     activeOpacity={0.8}
-                    onPress={() => router.push('/(tabs)/setupjam')}>
+                    onPress={() => router.push('/(tabs)/jam/setupjam' as any)}>
                     <View style={[styles.iconWrapper, { backgroundColor: '#3D2B6B' }]}>
                         <Ionicons name="shield-checkmark" size={32} color="#A78BFA" />
                     </View>
@@ -51,7 +51,7 @@ export default function JamScreen() {
                 <TouchableOpacity
                     style={styles.card}
                     activeOpacity={0.8}
-                    onPress={() => router.push('/(tabs)/joinjam')}>
+                    onPress={() => router.push('/(tabs)/jam/joinjam' as any)}>
                     <View style={[styles.iconWrapper, { backgroundColor: '#0F2D24' }]}>
                         <Ionicons name="git-merge" size={32} color={Colors.teal} />
                     </View>

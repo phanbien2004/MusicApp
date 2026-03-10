@@ -1,20 +1,20 @@
+import { Colors } from '@/constants/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    View,
+    Dimensions,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    StyleSheet,
-    SafeAreaView,
-    StatusBar,
-    Platform,
-    ScrollView,
-    Dimensions,
+    View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { Colors } from '@/constants/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -93,7 +93,9 @@ export default function RegisterArtistScreen() {
                     <Text style={styles.headerTitle}>Artist Portal</Text>
                     <View style={{ width: 36 }} />
                 </View>
-                <StepBar step={step} />
+                <View style={styles.stepBarWrapper}>
+                    <StepBar step={step} />
+                </View>
             </View>
 
             <ScrollView
@@ -253,6 +255,10 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
+    },
+    stepBarWrapper: {
+        alignItems: 'center',
+        paddingVertical: 6,
     },
     backBtn: {
         width: 36, height: 36, borderRadius: 18,

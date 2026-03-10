@@ -1,8 +1,8 @@
+import { AuthProvider, useAuth } from '@/context/auth-context';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
-import { AuthProvider, useAuth } from '@/context/auth-context';
 
 // Guard: redirect dựa theo trạng thái auth
 function AuthGuard() {
@@ -12,13 +12,14 @@ function AuthGuard() {
 
     useEffect(() => {
         const inAuthGroup = segments[0] === '(tabs)';
+        const seg0 = segments[0] as string;
 
         if (!isLoggedIn && inAuthGroup) {
             // Chưa đăng nhập mà cố vào tabs → chuyển về login
-            router.replace('/login');
-        } else if (isLoggedIn && (segments[0] === 'login' || segments[0] === 'signup')) {
+            router.replace('/login' as any);
+        } else if (isLoggedIn && (seg0 === 'login' || seg0 === 'signup')) {
             // Đã đăng nhập mà vào login/signup → chuyển về home
-            router.replace('/(tabs)/home');
+            router.replace('/(tabs)/home' as any);
         }
     }, [isLoggedIn, segments]);
 

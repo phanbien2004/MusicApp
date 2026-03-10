@@ -1,17 +1,17 @@
-import React from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    SafeAreaView,
-    StatusBar,
-    Platform,
-    TouchableOpacity,
-    FlatList,
-} from 'react-native';
+import { Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Colors } from '@/constants/theme';
+import React from 'react';
+import {
+    FlatList,
+    Platform,
+    SafeAreaView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 
 const notifications = [
     {
@@ -59,7 +59,7 @@ export default function JamNotificationScreen() {
             <View style={styles.header}>
                 <TouchableOpacity
                     style={styles.backBtn}
-                    onPress={() => router.push('/(tabs)/jamroom' as any)}>
+                    onPress={() => router.push('/(tabs)/jam/jamroom' as any)}>
                     <Ionicons name="chevron-back" size={22} color={Colors.white} />
                 </TouchableOpacity>
                 <View style={styles.headerInfo}>

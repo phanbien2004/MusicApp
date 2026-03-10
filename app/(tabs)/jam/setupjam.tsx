@@ -1,18 +1,18 @@
+import { Colors } from '@/constants/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
+    Platform,
     SafeAreaView,
     StatusBar,
-    Platform,
-    TouchableOpacity,
+    StyleSheet,
     Switch,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { Colors } from '@/constants/theme';
 
 export default function SetupJamScreen() {
     const router = useRouter();
@@ -61,7 +61,7 @@ export default function SetupJamScreen() {
                     <TouchableOpacity
                         style={styles.startBtnWrapper}
                         activeOpacity={0.85}
-                        onPress={() => router.push('/(tabs)/jamroom' as any)}>
+                        onPress={() => router.push('/(tabs)/jam/jamroom' as any)}>
                         <LinearGradient
                             colors={[Colors.teal, '#1AAF74']}
                             start={{ x: 0, y: 0 }}

@@ -1,17 +1,17 @@
-import React, { useState } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    SafeAreaView,
-    StatusBar,
-    Platform,
-    TouchableOpacity,
-    TextInput,
-} from 'react-native';
+import { Colors } from '@/constants/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Colors } from '@/constants/theme';
+import React, { useState } from 'react';
+import {
+    Platform,
+    SafeAreaView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 
 export default function JoinJamScreen() {
     const router = useRouter();
@@ -50,7 +50,7 @@ export default function JoinJamScreen() {
 
                     {/* Join button */}
                     <TouchableOpacity style={styles.joinBtnWrapper} activeOpacity={0.85}
-                        onPress={() => router.push('/(tabs)/jamroom' as any)}>
+                        onPress={() => router.push('/(tabs)/jam/jamroom' as any)}>
                         <LinearGradient
                             colors={[Colors.teal, '#1AAF74']}
                             start={{ x: 0, y: 0 }}
