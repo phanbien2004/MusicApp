@@ -52,20 +52,19 @@ export default function SearchScreen() {
     const [type, setType] = useState<'tracks' | 'albums' | 'members' | 'artists' | 'all'>('all');
     const [results, setResults] = useState<SearchResult[] | null>(null);
 
-    const toggleFollow = (id: string) => {
-        setFollowedIds(prev => {
-            const next = new Set(prev);
-            next.has(id) ? next.delete(id) : next.add(id);
-            return next;
-        });
-    };
 
     const handleTouchAddFriend = (id: string) => {
-        setAddedIds(prev => {
-            const next = new Set(prev);
-            next.has(id) ? next.delete(id) : next.add(id);
-            return next;
-        });
+        console.log("Add friend with id:", id);
+        const newResults   = results?.map(item => {
+            if(item.type === 'Users' && item.id.toString() === id) {
+                const tmp = item.friend;
+                return {...item, friend: !tmp};
+            }
+            return item;
+        })
+        if(newResults) {
+            setResults(newResults);
+        }
     };
 
     const filterData = (searchResponse: SearchResponse) => {
@@ -227,15 +226,16 @@ export default function SearchScreen() {
                                 {item.friend ?  (
                                     <TouchableOpacity 
                                         style={styles.actionBtn}
+                                        onPress={() => handleTouchAddFriend(item.id.toString())}
                                     > 
                                         <Text style={styles.actionBtnText}>Added</Text>
                                     </TouchableOpacity>
                                 ) : (
                                     <TouchableOpacity 
-                                        style={styles.actionBtn}
-                                        onPress={() => console.log("View friend profile:", item.id)}
+                                        style={[styles.actionBtn, styles.actionBtnActive]}
+                                        onPress={() => handleTouchAddFriend(item.id.toString())}
                                     > 
-                                        <Text style={styles.actionBtnText}>Add</Text>
+                                        <Text>Add</Text>
                                     </TouchableOpacity>
                                 )}
                             </View>

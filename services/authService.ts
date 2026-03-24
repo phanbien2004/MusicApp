@@ -18,6 +18,7 @@ export interface RegisterRequest {
 }
 
 export interface AuthResponse {
+    userId: number,
     accessToken: string | null;
     refreshToken: string | null;
     message: string;

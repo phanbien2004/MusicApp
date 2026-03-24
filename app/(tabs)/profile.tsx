@@ -1,8 +1,8 @@
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback } from 'react';
 import {
     Dimensions,
     Platform,
@@ -15,6 +15,10 @@ import {
     View,
 } from 'react-native';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { getProfileAPI, ProfileResponse } from '@/services/profileService';
+
 const { width } = Dimensions.get('window');
 const PLAYLIST_CARD = (width - 48 - 12) / 2;
 
@@ -26,6 +30,26 @@ const playlists = [
 export default function ProfileScreen() {
     const router = useRouter();
     const { logout } = useAuth();
+
+    const [profileData, setProfileData] = React.useState<ProfileResponse | null>(null);
+
+    useFocusEffect(
+        useCallback(() => {
+            const fetchProfile = async () => {
+                try {
+                    const userId = await AsyncStorage.getItem('userId');
+                    if (userId) {
+                        const res = await getProfileAPI(userId.toString());
+                        setProfileData(res);
+                    }
+                } catch (error) {
+                    console.error("Lỗi khi lấy profile:", error);
+                }
+            };
+
+            fetchProfile();
+        }, [])
+    );
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -57,25 +81,25 @@ export default function ProfileScreen() {
                     <View style={styles.profileTop}>
                         <View style={styles.avatar} />
                         <View style={styles.profileInfo}>
-                            <Text style={styles.profileName}>Biên</Text>
-                            <Text style={styles.profileHandle}>@bienne</Text>
+                            <Text style={styles.profileName}>{profileData?.displayName}</Text>
+                            {/* <Text style={styles.profileHandle}>@bienne</Text> */}
                         </View>
                     </View>
 
                     {/* Stats */}
                     <View style={styles.statsRow}>
                         <View style={styles.statItem}>
-                            <Text style={styles.statNumber}>500</Text>
+                            <Text style={styles.statNumber}>{profileData?.followedArtistCount}</Text>
                             <Text style={styles.statLabel}>FOLLOWING</Text>
                         </View>
                         <View style={styles.statDivider} />
                         <View style={styles.statItem}>
-                            <Text style={styles.statNumber}>20</Text>
+                            <Text style={styles.statNumber}>{profileData?.friendCount}</Text>
                             <Text style={styles.statLabel}>FRIENDS</Text>
                         </View>
                         <View style={styles.statDivider} />
                         <View style={styles.statItem}>
-                            <Text style={styles.statNumber}>20</Text>
+                            <Text style={styles.statNumber}>{profileData?.playlistCount}</Text>
                             <Text style={styles.statLabel}>PLAYLIST</Text>
                         </View>
                     </View>

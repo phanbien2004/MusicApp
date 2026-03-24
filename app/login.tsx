@@ -53,6 +53,7 @@ export default function LoginScreen() {
                 if(res.accessToken && res.refreshToken){
                     await AsyncStorage.setItem('accessToken', res.accessToken);
                     await AsyncStorage.setItem('refreshToken', res.refreshToken);
+                    await AsyncStorage.setItem('userId', JSON.stringify(res.userId));
                     login(res.accessToken, res.refreshToken);
                     router.replace('/(tabs)/home');
                 }else{
