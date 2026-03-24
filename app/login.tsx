@@ -2,6 +2,7 @@ import { Colors } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { loginAPI } from '@/services/authService';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -49,8 +50,14 @@ export default function LoginScreen() {
                 setError("Mật khẩu không chính xác!");
             }
             else {
-                login(res.accessToken, res.refreshToken);
-                router.replace('/(tabs)/home' as any);
+                if(res.accessToken && res.refreshToken){
+                    await AsyncStorage.setItem('accessToken', res.accessToken);
+                    await AsyncStorage.setItem('refreshToken', res.refreshToken);
+                    login(res.accessToken, res.refreshToken);
+                    router.replace('/(tabs)/home');
+                }else{
+                    setError("Failed to retrieve authentication token.")
+                }
             }
         } catch (err: any) {
             setError(err?.message || 'Account not found!');
@@ -156,7 +163,7 @@ export default function LoginScreen() {
                     {/* ─── SIGN UP LINK ─── */}
                     <View style={styles.signupRow}>
                         <Text style={styles.signupHint}>DON'T HAVE AN ACCOUNT? </Text>
-                        <TouchableOpacity onPress={() => router.push('/signup' as any)}>
+                        <TouchableOpacity onPress={() => router.push('/signup')}>
                             <Text style={styles.signupLink}>SIGN UP</Text>
                         </TouchableOpacity>
                     </View>

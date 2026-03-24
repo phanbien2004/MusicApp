@@ -1,23 +1,23 @@
-import React, { useState, useRef } from 'react';
-import {
-    View,
-    Text,
-    TouchableOpacity,
-    StyleSheet,
-    SafeAreaView,
-    StatusBar,
-    Platform,
-    Dimensions,
-    FlatList,
-    Animated,
-    TouchableWithoutFeedback,
-    PanResponder,
-    Modal,
-} from 'react-native';
+import { Colors } from '@/constants/theme';
+import { usePlayer } from '@/context/player-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { usePlayer } from '@/context/player-context';
-import { Colors } from '@/constants/theme';
+import React, { useRef, useState } from 'react';
+import {
+    Animated,
+    Dimensions,
+    FlatList,
+    Modal,
+    PanResponder,
+    Platform,
+    SafeAreaView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View,
+} from 'react-native';
 
 const { width, height } = Dimensions.get('window');
 const ARTWORK_SIZE = width - 80;
@@ -39,7 +39,7 @@ const initialQueue: QueueItem[] = [
     { id: '6', title: 'Hãy Trao Cho Anh', artist: 'Sơn Tùng MTP', isCurrent: false },
 ];
 
-export default function CurrentSongScreen() {
+export default function CurrentTrackScreen() {
     const router = useRouter();
     const { lastActiveTab } = usePlayer();
     const [isPlaying, setIsPlaying] = useState(true);

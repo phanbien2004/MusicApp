@@ -6,7 +6,7 @@ import { BottomTabBar } from '@react-navigation/bottom-tabs';
 import { Tabs, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { CurrentSongProvider } from '@/context/currentSong-context';
+import { CurrentTrackProvider } from '@/context/currentTrack-context';
 
 const MAIN_TABS = ['home', 'search', 'jam', 'profile'];
 
@@ -15,7 +15,8 @@ function TabLayoutInner() {
     const tabBarHeight = 60 + insets.bottom;
     const pathname = usePathname();
     // Tất cả màn hình ẩn (href: null) — cần giữ tab cuối sáng
-    const HIDDEN_SCREENS = ['player/currentsong', 'jam/setupjam', 'jam/joinjam', 'notifications', 'jam/jamroom', 'jam/jamnotification', 'jam/jamsettings', 'profile/registerartist', 'profile/addlist'];
+    const HIDDEN_SCREENS = ['player/currentTrack', 'jam/setupjam', 'jam/joinjam', 'notifications', 
+    'jam/jamroom', 'jam/jamnotification', 'jam/jamsettings', 'profile/registerartist', 'profile/addlist'];
     const isHiddenScreen = HIDDEN_SCREENS.some(s => pathname.includes(s));
 
     // Lấy lastActiveTab từ context thay vì local state
@@ -67,7 +68,8 @@ function TabLayoutInner() {
                     fontWeight: '600',
                     letterSpacing: 0.5,
                 },
-            }}>
+            }}
+        >
             <Tabs.Screen
                 name="home"
                 options={{
@@ -97,7 +99,7 @@ function TabLayoutInner() {
                 }}
             />
             <Tabs.Screen
-                name="player/currentsong"
+                name="player/currentTrack"
                 options={{ href: null, headerShown: false }}
             />
             <Tabs.Screen
@@ -143,9 +145,9 @@ function TabLayoutInner() {
 export default function TabLayout() {
     return (
         <PlayerProvider>
-            <CurrentSongProvider>
+            <CurrentTrackProvider>
                 <TabLayoutInner />
-            </CurrentSongProvider>
+            </CurrentTrackProvider>
         </PlayerProvider>
     );
 }

@@ -1,9 +1,10 @@
 import { Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     FlatList,
+    Image,
     Platform,
     SafeAreaView,
     StatusBar,
@@ -14,60 +15,42 @@ import {
     View
 } from 'react-native';
 
-import { Song, useCurrentSong } from '@/context/currentSong-context';
+import { useAuth } from '@/context/auth-context';
+import { useCurrentTrack } from '@/context/currentTrack-context';
+import { searchAPI, SearchResponse } from '@/services/searchService';
 
 type Category = 'All' | 'Songs' | 'Albums' | 'Artists' | 'Users';
 
-interface SearchResult {
-    id: string;
-    title: string;
-    subtitle: string;
-    duration?: string;
-    type: Category;
-}
-
-const allResults: SearchResult[] = [
-    { id: '1', title: 'Em Của Ngày Hôm Qua', subtitle: 'Sơn Tùng MTP', duration: '3:36', type: 'Songs' },
-    { id: '2', title: 'Nơi Này Có Anh', subtitle: 'Sơn Tùng MTP', duration: '4:12', type: 'Songs' },
-    { id: '3', title: 'Chạy Ngay Đi', subtitle: 'Sơn Tùng MTP', duration: '3:55', type: 'Songs' },
-    { id: '4', title: 'Lạc Trôi', subtitle: 'Sơn Tùng MTP', duration: '4:05', type: 'Songs' },
-    { id: '5', title: 'Muộn Rồi Mà Sao Còn', subtitle: 'Sơn Tùng MTP', duration: '5:20', type: 'Songs' },
-    { id: '6', title: 'Sky Tour', subtitle: 'Sơn Tùng MTP • 2019', duration: '', type: 'Albums' },
-    { id: '7', title: 'm-tp M-TP', subtitle: 'Sơn Tùng MTP • 2017', duration: '', type: 'Albums' },
-    { id: '8', title: 'Sơn Tùng MTP', subtitle: '5.2M followers', duration: '', type: 'Artists' },
-    { id: '9', title: 'Đen Vâu', subtitle: '3.1M followers', duration: '', type: 'Artists' },
-    { id: '10', title: 'Mãi Như Ngày Hôm Qua', subtitle: 'Iam HDA', duration: '4:30', type: 'Songs' },
-    { id: '11', title: 'Iam HDA', subtitle: 'Online • Listening to Sơn Tùng', duration: '', type: 'Users' },
-    { id: '12', title: 'OneKill', subtitle: 'Offline • Last seen 2h ago', duration: '', type: 'Users' },
-    { id: '13', title: 'MinhThu', subtitle: 'Online • Listening to Đen Vâu', duration: '', type: 'Users' },
-    { id: '14', title: 'Alex99', subtitle: 'Offline • Last seen yesterday', duration: '', type: 'Users' },
-];
-
 const CATEGORIES: Category[] = ['All', 'Songs', 'Albums', 'Artists', 'Users'];
+
+interface SearchResult extends SearchResponse {
+    type: 'Tracks' | 'Albums' | 'Users' | 'Artists';
+    id: number;
+    // Thuộc tính của Tracks/Albums
+    title?: string;
+    thumbnailUrl?: string;
+    duration?: number;
+    // Thuộc tính của Members/Artists
+    name?: string;
+    avatarUrl?: string;
+    followed?: boolean;
+    friend?: boolean;
+}
 
 export default function SearchScreen() {
     const router = useRouter();
     const [query, setQuery] = useState('');
     const [isFocused, setIsFocused] = useState(false);
-    const [activeCategory, setActiveCategory] = useState<Category>('Songs');
+    const [activeCategory, setActiveCategory] = useState<Category>('All');
     const [followedIds, setFollowedIds] = useState<Set<string>>(new Set());
     const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
 
-    const { setCurrentSong } = useCurrentSong()!;
+    const {accessToken} = useAuth();
+    const { setCurrentTrack } = useCurrentTrack()!;
 
-    const handleSelectSong = (item: SearchResult) => {
-        // Chỉ xử lý nếu type là 'Songs'
-        if (item.type === 'Songs') {
-            const songData: Song = {
-                id: item.id,
-                title: item.title,
-                artist: item.subtitle,
-                url: '', // Sau này map với URL từ API
-                duration: item.duration,
-            };
-            setCurrentSong(songData); // Cập nhật bài hát vào context toàn cục
-        }
-    };
+    const [keyword, setKeyword] = useState('');
+    const [type, setType] = useState<'tracks' | 'albums' | 'members' | 'artists' | 'all'>('all');
+    const [results, setResults] = useState<SearchResult[] | null>(null);
 
     const toggleFollow = (id: string) => {
         setFollowedIds(prev => {
@@ -77,7 +60,7 @@ export default function SearchScreen() {
         });
     };
 
-    const toggleAdd = (id: string) => {
+    const handleTouchAddFriend = (id: string) => {
         setAddedIds(prev => {
             const next = new Set(prev);
             next.has(id) ? next.delete(id) : next.add(id);
@@ -85,29 +68,70 @@ export default function SearchScreen() {
         });
     };
 
-    const filtered = allResults.filter((item) => {
-        const matchCategory = activeCategory === 'All' || item.type === activeCategory;
-        const matchQuery = query.trim() === '' ||
-            item.title.toLowerCase().includes(query.toLowerCase()) ||
-            item.subtitle.toLowerCase().includes(query.toLowerCase());
-        return matchCategory && matchQuery;
-    });
+    const filterData = (searchResponse: SearchResponse) => {
+        const filteredResults: SearchResult[] = [];
+        searchResponse.trackPreviewDTOS?.content.forEach(track => {
+            filteredResults.push({ ...track, type: 'Tracks'});
+        });
+        searchResponse.albumPreviewDTOS?.content.forEach(album => {
+            filteredResults.push({ ...album, type: 'Albums' });
+        });
+        searchResponse.memberPreviewDTOS?.content.forEach(member => {
+            filteredResults.push({ ...member, type: 'Users' });
+        });
+        searchResponse.artistPreviewDTOS?.content.forEach(artist => {
+            filteredResults.push({ ...artist, type: 'Artists' });
+        });
+        setResults(filteredResults);
+        console.log("Filtered results:", filteredResults);
+    }
 
+    useEffect(() => {
+        if (!keyword.trim()) {
+            setResults(null);
+            return;
+        }
+
+        let isMounted = true;
+
+        if(accessToken) {
+            const delayDebounce = setTimeout(async () => {
+            try {
+                const response = await searchAPI(
+                    { 
+                        keyword, 
+                        type, 
+                        pageNumber: 1, 
+                        pageSize: 10 
+                    },
+                    accessToken
+                );
+                console.log("Search response:", response);
+                console.log("Member response:", response.memberPreviewDTOS?.content);
+                filterData(response);
+            } catch (error) {
+                if (isMounted) {
+                    console.error("Error searching:", error);
+                }
+            }}, 500);
+        }else{
+            console.log("Error Search: Not AccessToken");
+        }
+    }, [keyword, type]);
     return (
         <SafeAreaView style={styles.safeArea}>
             <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-
             {/* ─── HEADER ─── */}
             <View style={styles.header}>
-                <Text style={styles.logo}>AABT</Text>
-                <View style={styles.headerIcons}>
-                    <TouchableOpacity
-                        style={styles.iconBtn}
-                        onPress={() => router.push('/(tabs)/notifications')}>
-                        <Ionicons name="notifications-outline" size={24} color={Colors.white} />
-                    </TouchableOpacity>
-                </View>
-            </View>
+                 <Text style={styles.logo}>AABT</Text>
+                 <View style={styles.headerIcons}>
+                     <TouchableOpacity
+                         style={styles.iconBtn}
+                         onPress={() => router.push('/(tabs)/notifications')}>
+                         <Ionicons name="notifications-outline" size={24} color={Colors.white} />
+                     </TouchableOpacity>
+                 </View>
+             </View>
 
             {/* ─── SEARCH BAR ─── */}
             <View style={styles.searchWrapper}>
@@ -118,17 +142,17 @@ export default function SearchScreen() {
                         color={isFocused ? Colors.teal : Colors.gray}
                     />
                     <TextInput
-                        style={styles.input}
-                        placeholder="Search songs, artists, friends..."
-                        placeholderTextColor={Colors.gray}
-                        value={query}
-                        onChangeText={setQuery}
-                        onFocus={() => setIsFocused(true)}
-                        onBlur={() => setIsFocused(false)}
-                        returnKeyType="search"
+                    style={styles.input}
+                    placeholder="Search songs, artists, friends..."
+                    placeholderTextColor={Colors.gray}
+                    value={keyword}
+                    onChangeText={(text) => setKeyword(text)}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => setIsFocused(false)}
+                    returnKeyType="search"
                     />
-                    {query.length > 0 && (
-                        <TouchableOpacity onPress={() => setQuery('')}>
+                    {keyword.length > 0 && (
+                        <TouchableOpacity onPress={() => setKeyword('')}>
                             <Ionicons name="close-circle" size={18} color={Colors.gray} />
                         </TouchableOpacity>
                     )}
@@ -139,14 +163,27 @@ export default function SearchScreen() {
             <View style={styles.categoryRow}>
                 {CATEGORIES.map((cat) => (
                     <TouchableOpacity
-                        key={cat}
-                        style={[styles.categoryTab, activeCategory === cat && styles.categoryTabActive]}
-                        onPress={() => setActiveCategory(cat)}>
-                        <Text style={[
-                            styles.categoryText,
-                            activeCategory === cat && styles.categoryTextActive,
+                    key={cat}
+                    style={[styles.categoryTab, activeCategory === cat && styles.categoryTabActive]}
+                    onPress={() => {
+                        setActiveCategory(cat);
+                        if(cat == 'All') {
+                            setType('all');
+                        }else if (cat == 'Albums') {
+                            setType('albums');
+                        }else if (cat == 'Artists') {
+                            setType('artists');
+                        }else if(cat == 'Songs') {
+                            setType('tracks')
+                        }else{
+                            setType('members')
+                        }
+                    }}>
+                    <Text style={[
+                        styles.categoryText,
+                        activeCategory === cat && styles.categoryTextActive,
                         ]}>
-                            {cat}
+                        {cat}
                         </Text>
                     </TouchableOpacity>
                 ))}
@@ -154,8 +191,7 @@ export default function SearchScreen() {
 
             {/* ─── RESULTS ─── */}
             <FlatList
-                data={filtered}
-                keyExtractor={(item) => item.id}
+                data={results}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.listContent}
                 ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -166,73 +202,56 @@ export default function SearchScreen() {
                         <Text style={styles.emptySubText}>Try a different keyword</Text>
                     </View>
                 }
-                renderItem={({ item }) => (
-                    <TouchableOpacity 
-                        style={styles.resultItem}
-                        onPress={() => handleSelectSong(item)}
-                    >
-                        {/* Thumbnail */}
-                        <View style={[
-                            styles.thumbnail,
-                            (item.type === 'Artists' || item.type === 'Users') && styles.thumbnailRound,
-                        ]}>
-                            <Ionicons
-                                name={
-                                    item.type === 'Artists' ? 'person' :
-                                        item.type === 'Users' ? 'person' :
-                                            item.type === 'Albums' ? 'disc' : 'musical-notes'
-                                }
-                                size={20}
-                                color="#555"
-                            />
-                        </View>
-
-                        {/* Info */}
-                        <View style={styles.resultInfo}>
-                            <Text style={styles.resultTitle} numberOfLines={1}>{item.title}</Text>
-                            <Text style={styles.resultSubtitle} numberOfLines={1}>{item.subtitle}</Text>
-                        </View>
-
-                        {/* Right action: Follow / Add / Duration / Menu */}
-                        {item.type === 'Artists' ? (
-                            <TouchableOpacity
-                                style={[
-                                    styles.actionBtn,
-                                    followedIds.has(item.id) && styles.actionBtnActive,
-                                ]}
-                                onPress={() => toggleFollow(item.id)}>
-                                <Text style={[
-                                    styles.actionBtnText,
-                                    followedIds.has(item.id) && styles.actionBtnTextActive,
-                                ]}>
-                                    {followedIds.has(item.id) ? 'Following' : 'Follow'}
-                                </Text>
-                            </TouchableOpacity>
-                        ) : item.type === 'Users' ? (
-                            <TouchableOpacity
-                                style={[
-                                    styles.actionBtn,
-                                    addedIds.has(item.id) && styles.actionBtnActive,
-                                ]}
-                                onPress={() => toggleAdd(item.id)}>
-                                <Text style={[
-                                    styles.actionBtnText,
-                                    addedIds.has(item.id) && styles.actionBtnTextActive,
-                                ]}>
-                                    {addedIds.has(item.id) ? 'Added' : 'Add'}
-                                </Text>
-                            </TouchableOpacity>
-                        ) : item.duration ? (
-                            <Text style={styles.duration}>{item.duration}</Text>
-                        ) : (
-                            <TouchableOpacity>
-                                <Ionicons name="ellipsis-horizontal" size={20} color={Colors.gray} />
-                            </TouchableOpacity>
-                        )}
-                    </TouchableOpacity>
-                )}
+                renderItem={({ item }) => {
+                    let content;
+                    switch (item.type) {
+                        case 'Tracks':
+                            content = <Text>[SONG]</Text>;
+                            break;
+                        case 'Albums':
+                            content = <Text>[ALBUM]</Text>;
+                            break;
+                        case 'Artists':
+                            content = <Text>[ARTIST]</Text>;
+                            break;
+                        case 'Users':
+                            content = 
+                            <View style={styles.resultItem}>
+                                <Image 
+                                    source={{ uri: item.avatarUrl }} 
+                                    style={styles.thumbnail} 
+                                />
+                                <View style={styles.resultInfo}>
+                                    <Text style={styles.resultTitle}>{item.name}</Text>
+                                </View>
+                                {item.friend ?  (
+                                    <TouchableOpacity 
+                                        style={styles.actionBtn}
+                                    > 
+                                        <Text style={styles.actionBtnText}>Added</Text>
+                                    </TouchableOpacity>
+                                ) : (
+                                    <TouchableOpacity 
+                                        style={styles.actionBtn}
+                                        onPress={() => console.log("View friend profile:", item.id)}
+                                    > 
+                                        <Text style={styles.actionBtnText}>Add</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                            break;
+                        default:
+                            content = <Text style={{color: 'red'}}>Unknown: {item.type}</Text>;
+                    }
+                    return (
+                        <TouchableOpacity 
+                            style={styles.resultItem} 
+                        >
+                            {content}
+                        </TouchableOpacity>
+                    )}}
             />
-        </SafeAreaView>
+        </SafeAreaView>   
     );
 }
 

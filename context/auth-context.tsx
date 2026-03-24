@@ -6,6 +6,7 @@ interface AuthContextType {
     refreshToken: string | null;
     login: (accessToken?: string, refreshToken?: string) => void;
     logout: () => void;
+    newToken: (accessToken?: string, refreshToken?: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -14,6 +15,7 @@ const AuthContext = createContext<AuthContextType>({
     refreshToken: null,
     login: () => { },
     logout: () => { },
+    newToken : () => { }
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -33,8 +35,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setRefreshToken(null);
     };
 
+    const newToken = (aToken?: string, rToken?: string) => {
+        if (aToken) setAccessToken(aToken);
+        if (rToken) setRefreshToken(rToken);
+    };
+
     return (
-        <AuthContext.Provider value={{ isLoggedIn, accessToken, refreshToken, login, logout }}>
+        <AuthContext.Provider value={{ isLoggedIn, accessToken, refreshToken, login, logout, newToken }}>
             {children}
         </AuthContext.Provider>
     );

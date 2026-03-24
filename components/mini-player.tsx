@@ -1,20 +1,20 @@
 import { Colors } from '@/constants/theme';
-import { useCurrentSong } from '@/context/currentSong-context';
+import { useCurrentTrack } from '@/context/currentTrack-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function MiniPlayer() {
     const router = useRouter();
-    const context = useCurrentSong();
+    const context = useCurrentTrack();
 
     // 1. Kiểm tra nếu context chưa được khởi tạo hoặc không có bài hát
-    if (!context || !context.currentSong) {
+    if (!context || !context.currentTrack) {
         return null; // Không hiển thị gì nếu chưa chọn bài
     }
 
-    const { currentSong, isPlaying, setIsPlaying } = context;
+    const { currentTrack, isPlaying, setIsPlaying } = context;
 
     // 2. Hàm xử lý Play/Pause
     const handlePlayPause = () => {
@@ -29,25 +29,25 @@ export default function MiniPlayer() {
                 onPress={() => router.push('/(tabs)/player/currentsong' as any)}>
 
                 {/* Thumbnail - Hiển thị artwork nếu có, không thì hiện icon mặc định */}
-                <View style={styles.thumbnail}>
-                    {currentSong.artwork ? (
+                {/* <View style={styles.thumbnail}>
+                    {currentTrack.artwork ? (
                         <Image
-                            source={{ uri: currentSong.artwork }}
+                            source={{ uri: currentTrack.artwork }}
                             style={styles.artworkImage}
                         />
                     ) : (
                         <Ionicons name="musical-notes" size={18} color={Colors.teal} />
                     )}
-                </View>
+                </View> */}
 
                 {/* Song info lấy từ Context */}
                 <View style={styles.songInfo}>
                     <Text style={styles.songTitle} numberOfLines={1}>
-                        {currentSong.title || 'Unknown Title'}
+                        {currentTrack.title || 'Unknown Title'}
                     </Text>
-                    <Text style={styles.songArtist} numberOfLines={1}>
-                        {currentSong.artist || 'Unknown Artist'}
-                    </Text>
+                    {/* <Text style={styles.songArtist} numberOfLines={1}>
+                        {currentTrack.artist || 'Unknown Artist'}
+                    </Text> */}
                 </View>
 
                 {/* Controls */}

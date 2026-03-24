@@ -1,0 +1,106 @@
+import apiClient from '@/api/apiClient';
+import { BASE_URL } from "@/constants/baseURL";
+
+export interface SearchRequest {
+    keyword: string;
+    type: 'tracks' | 'albums' | 'members' | 'artists' | 'all';
+    pageNumber: number;
+    pageSize: number;
+}
+
+export interface TrackContentType {
+    id: number,
+    title: string,
+    thumbnailUrl: string,
+    duration: number,
+    contributors: TrackContributorType[]
+}
+
+export interface TrackContributorType {
+    id: number,
+    name: string,
+}
+
+export interface AlbumContentType {
+    id: number,
+    title: string,
+    thumbnailUrl: string,
+    releaseYear: number
+}
+
+export interface MemberContentType {
+    id: number,
+    avatarUrl: string,
+    name: string,
+    isFollowed: boolean,
+    isFriend: boolean
+}
+
+export interface ArtistContentType {
+    id: number,
+    avatarUrl: string,
+    name: string,
+    isFollowed: boolean,
+    isFriend: boolean
+}
+
+export interface TrackPreviewDTOS {
+    content: TrackContentType[],
+    contributors: TrackContributorType[],
+    currentPage: number,
+    pageSize: number,
+    totalElements: number,
+    totalPages: number
+}
+
+export interface AlbumPreviewDTOS {
+    content: AlbumContentType[],
+    currentPage: number,
+    pageSize: number,
+    totalElements: number,
+    totalPages: number
+}
+
+export interface MemberPreviewDTOS {
+    content: MemberContentType[],
+    currentPage: number,
+    pageSize: number,
+    totalElements: number,
+    totalPages: number
+}        
+
+export interface ArtistPreviewDTOS {
+    content: ArtistContentType[],
+    currentPage: number,
+    pageSize: number,
+    totalElements: number,
+    totalPages: number
+}
+
+export interface SearchResponse {
+    trackPreviewDTOS?: TrackPreviewDTOS;
+    albumPreviewDTOS?: AlbumPreviewDTOS;
+    memberPreviewDTOS?: MemberPreviewDTOS;
+    artistPreviewDTOS?: ArtistPreviewDTOS;
+}
+
+export async function searchAPI(data: SearchRequest, accessToken: string): Promise<SearchResponse> {
+    console.log(accessToken);
+    console.log(`${BASE_URL}/api/v1/search?keyword=${(data.keyword)}&type=${data.type}&pageNumber=${data.pageNumber}&pageSize=${data.pageSize}`)
+    const res = await apiClient.get('/api/v1/search', {
+        params: {
+            keyword: data.keyword,
+            type: data.type,
+            pageNumber: data.pageNumber,
+            pageSize: data.pageSize
+        }
+    });
+
+    // const json = await res.json();
+
+    // if (!res.ok) {
+    //     throw new Error(json?.message || `Search failed (${res.status})`);
+    // }
+
+    return res.data
+}

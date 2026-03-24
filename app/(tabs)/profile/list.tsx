@@ -13,7 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Import đúng Context của bạn
-import { Song, useCurrentSong } from '@/context/currentSong-context';
+import { Song, useCurrentSong } from '@/context/currentTrack-context';
 
 export default function PlaylistDetailScreen() {
     const router = useRouter();
