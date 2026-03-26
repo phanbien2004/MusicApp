@@ -14,7 +14,8 @@ export interface ProfileResponse {
     followedArtistCount: number,
     friendCount: number,
     playlistCount: number,
-    playlists: PlayList[]
+    playlists: PlayList[],
+    isArtist?: boolean // (Phải nhờ Backend trả về thêm trường này để FE biết)
 }
 
 export const getProfileAPI = async (id: string) : Promise<ProfileResponse> => {
@@ -24,3 +25,13 @@ export const getProfileAPI = async (id: string) : Promise<ProfileResponse> => {
     console.log("Responseres GetProfileAPI: ", profileData);
     return profileData;
 }
+
+export interface UpdateProfilePayload {
+    displayName: string;
+    avatarKey: string;
+}
+
+export const updateProfileAPI = async (payload: UpdateProfilePayload) => {
+    const res = await apiClient.post(`${BASE_URL}/api/v1/member/updateProfile`, payload);
+    return res.data; // Server trả về chuỗi "Profile updated successfully!"
+};

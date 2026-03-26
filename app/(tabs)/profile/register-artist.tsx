@@ -3,6 +3,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
+import * as ImagePicker from 'expo-image-picker';
+import { Alert } from 'react-native';
 import {
     Dimensions,
     Platform,
@@ -14,7 +16,10 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    Image,
 } from 'react-native';
+import { getPresignedUploadUrl, uploadFileToMinIO } from "@/services/storageService";
+import { createArtistProfileAPI } from "@/services/artistService";
 
 const { width } = Dimensions.get('window');
 
@@ -61,6 +66,7 @@ const stepStyles = StyleSheet.create({
     line: { flex: 0, height: 1.5, backgroundColor: '#2A2A2A', width: 20 },
 });
 
+
 // ─── Main Component ───────────────────────────────────────────────
 export default function RegisterArtistScreen() {
     const router = useRouter();
@@ -68,14 +74,79 @@ export default function RegisterArtistScreen() {
     const [stageName, setStageName] = useState('');
     const [bio, setBio] = useState('');
     const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set(['Indie Pop', 'Lo-fi']));
+    // ─── Tách thành 2 State cho Ảnh ───
     const [agreed, setAgreed] = useState(false);
+    const [avatarFile, setAvatarFile] = useState<any>(null); // Avatar (1:1)
+    const [coverFile, setCoverFile] = useState<any>(null);   // Cover (16:9)
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // Bật tắt thẻ Genre
     const toggleGenre = (g: string) => {
         setSelectedGenres(prev => {
             const next = new Set(prev);
             next.has(g) ? next.delete(g) : next.add(g);
             return next;
         });
+    };
+
+    // Hàm mở thư viện ảnh chung
+    // isAvatar = true -> Cắt tỉ lệ 1:1. isAvatar = false -> Cắt tỷ lệ 16:9
+    const pickImageParams = async (isAvatar: boolean) => {
+        let result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            aspect: isAvatar ? [1, 1] : [16, 9], // Ép cắt ảnh tùy theo khung
+            quality: 0.8,
+        });
+        if (!result.canceled) {
+            const asset = result.assets[0];
+            const fileObj = {
+                uri: asset.uri,
+                type: asset.mimeType || 'image/jpeg',
+                name: asset.fileName || `${isAvatar ? 'avatar' : 'cover'}-${Date.now()}.jpg`
+            };
+            if (isAvatar) setAvatarFile(fileObj);
+            else setCoverFile(fileObj);
+        }
+    };
+
+    // Hàm xử lý Submit Toàn Bộ
+    const handleSubmit = async () => {
+        if (!agreed) return Alert.alert("Cảnh báo", "Bạn cần đồng ý với điều khoản!");
+        if (!stageName || !avatarFile || !coverFile) return Alert.alert("Cảnh báo", "Vui lòng nhập tên và chọn ĐỦ CẢ 2 ẢNH!");
+        
+        setIsSubmitting(true);
+        try {
+            console.log("=> Xin Presigned URL cho Avatar và Cover...");
+            // Xin Link song song cho nhanh (hoặc tuần tự nếu muốn)
+            const [avatarRes, coverRes] = await Promise.all([
+                getPresignedUploadUrl(avatarFile.name, avatarFile.type, "avatars"),
+                getPresignedUploadUrl(coverFile.name, coverFile.type, "covers")
+            ]);
+
+            console.log("=> Đang đẩy 2 File lên MinIO...");
+            await Promise.all([
+                uploadFileToMinIO(avatarFile.uri, avatarFile.type, avatarRes.url),
+                uploadFileToMinIO(coverFile.uri, coverFile.type, coverRes.url)
+            ]);
+
+            console.log("=> Hoàn tất MinIO! Tạo hồ sơ Nghệ sĩ Backend...");
+            const responseData = await createArtistProfileAPI({
+                stageName: stageName,
+                bio: bio,
+                avatarKey: avatarRes.key, // Lấy đúng Key của từng ảnh gửi xuống
+                coverKey: coverRes.key
+            });
+            console.log("=> Request Thành Công:", responseData);
+            Alert.alert("Thành công!", "Đã gửi yêu cầu đăng ký Nghệ sĩ.");
+            router.back();
+        } catch (error: any) {
+            console.log("=> Lỗi đăng ký:", error);
+            const errMsg = error.response?.data?.message || error.message || JSON.stringify(error);
+            Alert.alert("Lỗi", "Chi tiết lỗi: " + errMsg);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -192,13 +263,33 @@ export default function RegisterArtistScreen() {
                             Help us protect our community by confirming your details.
                         </Text>
 
-                        <Text style={styles.fieldLabel}>Asset Verification</Text>
+                        <Text style={styles.fieldLabel}>CHOOSE IMAGES</Text>
 
-                        {/* Upload box */}
-                        <TouchableOpacity style={styles.uploadBox}>
-                            <Ionicons name="cloud-upload-outline" size={36} color={Colors.teal} />
-                            <Text style={styles.uploadText}>UPLOAD COVER ART / ID</Text>
-                        </TouchableOpacity>
+                        <View style={styles.imagesContainer}>
+                            {/* Avatar Box (1:1) */}
+                            <TouchableOpacity style={[styles.avatarUploadBox, avatarFile && { padding: 0 }]} onPress={() => pickImageParams(true)}>
+                                {avatarFile ? (
+                                    <Image source={{ uri: avatarFile.uri }} style={styles.avatarImagePreview} resizeMode="cover" />
+                                ) : (
+                                    <>
+                                        <Ionicons name="person-circle-outline" size={32} color={Colors.teal} />
+                                        <Text style={styles.uploadTextSmall}>Avatar (1:1)</Text>
+                                    </>
+                                )}
+                            </TouchableOpacity>
+
+                            {/* Cover Box (16:9) */}
+                            <TouchableOpacity style={[styles.coverUploadBox, coverFile && { padding: 0 }]} onPress={() => pickImageParams(false)}>
+                                {coverFile ? (
+                                    <Image source={{ uri: coverFile.uri }} style={styles.coverImagePreview} resizeMode="cover" />
+                                ) : (
+                                    <>
+                                        <Ionicons name="image-outline" size={32} color={Colors.teal} />
+                                        <Text style={styles.uploadTextSmall}>Cover (16:9)</Text>
+                                    </>
+                                )}
+                            </TouchableOpacity>
+                        </View>
 
                         {/* Terms */}
                         <View style={styles.termsCard}>
@@ -222,12 +313,15 @@ export default function RegisterArtistScreen() {
                         <TouchableOpacity
                             style={styles.nextBtnWrapper}
                             activeOpacity={0.85}
-                            onPress={() => router.back()}>
+                            disabled={isSubmitting}
+                            onPress={handleSubmit}>
                             <LinearGradient
                                 colors={['#7C6FEC', '#33D294']}
                                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                                 style={styles.nextBtn}>
-                                <Text style={styles.nextBtnText}>SUBMIT</Text>
+                                <Text style={styles.nextBtnText}>
+                                    {isSubmitting ? "ĐANG TIẾN HÀNH..." : "SUBMIT"}
+                                </Text>
                             </LinearGradient>
                         </TouchableOpacity>
                     </>
@@ -356,23 +450,44 @@ const styles = StyleSheet.create({
     genreTextActive: { color: Colors.teal },
 
     // Upload
-    uploadBox: {
+    imagesContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 16,
+        marginBottom: 20,
+    },
+    avatarUploadBox: {
+        flex: 0.35,
+        aspectRatio: 1, // Vuông 1:1
         borderWidth: 1.5,
         borderColor: Colors.teal,
         borderStyle: 'dashed',
         borderRadius: 16,
-        height: 130,
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 10,
-        marginBottom: 20,
         backgroundColor: '#0F2D2420',
+        padding: 10,
     },
-    uploadText: {
-        fontSize: 13,
+    coverUploadBox: {
+        flex: 0.65,
+        aspectRatio: 16/9, // Hình chữ nhật 16:9
+        borderWidth: 1.5,
+        borderColor: Colors.teal,
+        borderStyle: 'dashed',
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#0F2D2420',
+        padding: 10,
+    },
+    avatarImagePreview: { width: '100%', height: '100%', borderRadius: 14 },
+    coverImagePreview: { width: '100%', height: '100%', borderRadius: 14 },
+    uploadTextSmall: {
+        fontSize: 11,
         fontWeight: '700',
         color: Colors.teal,
-        letterSpacing: 1,
+        marginTop: 6,
+        textAlign: 'center',
     },
 
     // Terms card

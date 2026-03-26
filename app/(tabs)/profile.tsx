@@ -106,16 +106,34 @@ export default function ProfileScreen() {
 
                     {/* Action buttons */}
                     <View style={styles.actionsRow}>
-                        <TouchableOpacity style={styles.editBtn}>
+                        <TouchableOpacity 
+                            style={styles.editBtn}
+                            onPress={() => router.push({
+                                pathname: '/(tabs)/profile/edit-profile',
+                                params: { 
+                                    name: profileData?.displayName || '',
+                                    avatar: profileData?.avatarUrl || ''
+                                }
+                            } as any)}
+                        >
                             <Ionicons name="pencil-outline" size={16} color={Colors.white} />
                             <Text style={styles.editBtnText}>Edit Profile</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.artistBtn}
-                            onPress={() => router.push('/(tabs)/profile/registerartist' as any)}>
-                            <Ionicons name="musical-notes-outline" size={16} color={Colors.white} />
-                            <Text style={styles.artistBtnText}>Register Artist</Text>
-                        </TouchableOpacity>
+                        {profileData?.isArtist ? (
+                            <TouchableOpacity
+                                style={[styles.artistBtn, { backgroundColor: '#33D294' }]}
+                                onPress={() => router.push('/(tabs)/profile/artist-portal' as any)}>
+                                <Ionicons name="star" size={16} color={Colors.white} />
+                                <Text style={styles.artistBtnText}>Artist Portal</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <TouchableOpacity
+                                style={styles.artistBtn}
+                                onPress={() => router.push('/(tabs)/profile/register-artist' as any)}>
+                                <Ionicons name="musical-notes-outline" size={16} color={Colors.white} />
+                                <Text style={styles.artistBtnText}>Register Artist</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
 
