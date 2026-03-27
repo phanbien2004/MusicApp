@@ -5,6 +5,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback } from 'react';
 import {
     Dimensions,
+    Image,
     Platform,
     SafeAreaView,
     ScrollView,
@@ -13,12 +14,11 @@ import {
     Text,
     TouchableOpacity,
     View,
-    Image,
 } from 'react-native';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { getMyProfileAPI, ProfileResponse } from '@/services/profileService';
+import { getProfileAPI, ProfileResponse } from '@/services/profileService';
 
 const { width } = Dimensions.get('window');
 const PLAYLIST_CARD = (width - 48 - 12) / 2;
@@ -40,7 +40,8 @@ export default function ProfileScreen() {
                 try {
                     const userId = await AsyncStorage.getItem('userId');
                     if (userId) {
-                        const res = await getMyProfileAPI();
+                        // const res = await getMyProfileAPI();
+                        const res = await getProfileAPI(userId);
                         setProfileData(res);
                     }
                 } catch (error) {

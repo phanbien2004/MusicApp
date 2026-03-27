@@ -1,5 +1,5 @@
 import { Colors } from '@/constants/theme';
-import { useCurrentTrack } from '@/context/currentTrack-context';
+import { CurrentTrack, useCurrentTrack } from '@/context/currentTrack-context';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import { useAudioPlayerStatus } from 'expo-audio';
@@ -40,6 +40,34 @@ const initialQueue: QueueItem[] = [
     { id: '5', title: 'Muộn Rồi Mà Sao Còn', artist: 'Sơn Tùng MTP', isCurrent: false },
 ];
 
+const track1 : CurrentTrack = {
+    id: 1,
+    title: "Đau nhất là lặng im",
+    thumbnailUrl: "string",
+    duration: 120,
+    contributors: [
+        {
+            id : 1,
+            name: "Erik",
+        }
+    ],
+    trackURL: require("@/assets/musics/testDemo.mp3")
+}
+
+const track2 : CurrentTrack = {
+    id: 1,
+    title: "Vạn sự như ý",
+    thumbnailUrl: "string",
+    duration: 120,
+    contributors: [
+        {
+            id : 1,
+            name: "Trúc Nhân",
+        }
+    ],
+    trackURL: require("@/assets/musics/testDemo2.mp3")
+}
+
 const formatTime = (timeInSeconds: number) => {
     if (!timeInSeconds || isNaN(timeInSeconds)) return "0:00";
     const totalSeconds = Math.floor(timeInSeconds);
@@ -51,7 +79,7 @@ const formatTime = (timeInSeconds: number) => {
 export default function CurrentTrackScreen() {
     const context = useCurrentTrack();
 
-    if (!context || !context.currentTrack || !context.player) {
+    if (!context || !context.currentTrack || !context.player || !context.setCurrentTrack) {
         return (
             <View style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
                 <Text style={{ color: Colors.gray }}>Không có bài hát nào đang phát.</Text>
@@ -67,6 +95,7 @@ function CurrentTrackUI({ currentTrack, player }: { currentTrack: any, player: a
     const insets = useSafeAreaInsets();
     const status = useAudioPlayerStatus(player);
 
+    const context = useCurrentTrack();
     const [isSeeking, setIsSeeking] = useState(false);
     const [seekValue, setSeekValue] = useState(0);
     const [isShuffle, setIsShuffle] = useState(false);
@@ -212,7 +241,10 @@ function CurrentTrackUI({ currentTrack, player }: { currentTrack: any, player: a
                         <Ionicons name={status.playing ? 'pause' : 'play'} size={40} color={Colors.white} />
                     </TouchableOpacity>
                     
-                    <TouchableOpacity><Ionicons name="play-skip-forward" size={36} color={Colors.white} /></TouchableOpacity>
+                    <TouchableOpacity
+                    >
+                        <Ionicons name="play-skip-forward" size={36} color={Colors.white} />
+                    </TouchableOpacity>
                     <TouchableOpacity onPress={() => setIsRepeat(!isRepeat)}>
                         <Ionicons name="repeat" size={26} color={isRepeat ? Colors.teal : Colors.gray} />
                     </TouchableOpacity>

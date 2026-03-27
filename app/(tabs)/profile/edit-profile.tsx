@@ -1,12 +1,13 @@
 import { Colors } from '@/constants/theme';
+import { updateProfileAPI } from "@/services/profileService";
+import { getPresignedUploadUrl, uploadFileToMinIO } from "@/services/storageService";
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import * as ImagePicker from 'expo-image-picker';
-import { Alert } from 'react-native';
 import {
-    Platform,
+    Alert, Image, Platform,
     SafeAreaView,
     ScrollView,
     StatusBar,
@@ -14,11 +15,8 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View,
-    Image,
+    View
 } from 'react-native';
-import { getPresignedUploadUrl, uploadFileToMinIO } from "@/services/storageService";
-import { updateProfileAPI } from "@/services/profileService";
 
 export default function EditProfileScreen() {
     const router = useRouter();
@@ -66,6 +64,7 @@ export default function EditProfileScreen() {
                 const avatarRes = await getPresignedUploadUrl(avatarFile.name, avatarFile.type, "avatars");
                 
                 console.log("=> Đẩy Avatar mới lên MinIO...");
+                console.log(avatarFile.type);
                 await uploadFileToMinIO(avatarFile.uri, avatarFile.type, avatarRes.url);
                 
                 finalAvatarKey = avatarRes.key;
