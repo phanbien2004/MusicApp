@@ -13,11 +13,12 @@ import {
     Text,
     TouchableOpacity,
     View,
+    Image,
 } from 'react-native';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { getProfileAPI, ProfileResponse } from '@/services/profileService';
+import { getMyProfileAPI, ProfileResponse } from '@/services/profileService';
 
 const { width } = Dimensions.get('window');
 const PLAYLIST_CARD = (width - 48 - 12) / 2;
@@ -39,7 +40,7 @@ export default function ProfileScreen() {
                 try {
                     const userId = await AsyncStorage.getItem('userId');
                     if (userId) {
-                        const res = await getProfileAPI(userId.toString());
+                        const res = await getMyProfileAPI();
                         setProfileData(res);
                     }
                 } catch (error) {
@@ -79,10 +80,15 @@ export default function ProfileScreen() {
                 <View style={styles.profileCard}>
                     {/* Avatar + Name */}
                     <View style={styles.profileTop}>
-                        <View style={styles.avatar} />
+                        {profileData?.avatarUrl ? (
+                            <Image source={{ uri: profileData.avatarUrl }} style={styles.avatarImg} />
+                        ) : (
+                            <View style={styles.avatar}>
+                                <Ionicons name="person" size={36} color={Colors.gray} />
+                            </View>
+                        )}
                         <View style={styles.profileInfo}>
                             <Text style={styles.profileName}>{profileData?.displayName}</Text>
-                            {/* <Text style={styles.profileHandle}>@bienne</Text> */}
                         </View>
                     </View>
 
@@ -106,16 +112,70 @@ export default function ProfileScreen() {
 
                     {/* Action buttons */}
                     <View style={styles.actionsRow}>
-                        <TouchableOpacity style={styles.editBtn}>
+                        <TouchableOpacity 
+                            style={styles.editBtn}
+                            onPress={() => router.push({
+                                pathname: '/(tabs)/profile/edit-profile',
+                                params: { 
+                                    name: profileData?.displayName || '',
+                                    avatar: profileData?.avatarUrl || ''
+                                }
+                            } as any)}
+                        >
                             <Ionicons name="pencil-outline" size={16} color={Colors.white} />
                             <Text style={styles.editBtnText}>Edit Profile</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.artistBtn}
-                            onPress={() => router.push('/(tabs)/profile/registerartist' as any)}>
-                            <Ionicons name="musical-notes-outline" size={16} color={Colors.white} />
-                            <Text style={styles.artistBtnText}>Register Artist</Text>
-                        </TouchableOpacity>
+                        {profileData?.artistStatus === 'VERIFIED' ? (
+                            // Đã duyệt => Artist Portal
+                            <TouchableOpacity
+                                style={[styles.artistBtn, { backgroundColor: '#33D294' }]}
+                                onPress={() => router.push('/(tabs)/profile/artist-portal' as any)}>
+                                <Ionicons name="star" size={16} color={Colors.white} />
+                                <Text style={styles.artistBtnText}>Artist Portal</Text>
+                            </TouchableOpacity>
+                        ) : profileData?.artistStatus === 'PENDING' ? (
+                            // Đang chờ => Cho sửa lại
+                            <TouchableOpacity
+                                style={[styles.artistBtn, { borderColor: Colors.teal, borderWidth: 1, backgroundColor: 'transparent' }]}
+                                onPress={() => router.push({
+                                    pathname: '/(tabs)/profile/register-artist',
+                                    params: {
+                                        mode: 'update',
+                                        stageName: profileData?.artistStageName || '',
+                                        bio: profileData?.artistBio || '',
+                                        avatarUrl: profileData?.artistAvatarUrl || '',
+                                        coverUrl: profileData?.artistCoverUrl || '',
+                                    }
+                                } as any)}>
+                                <Ionicons name="time-outline" size={16} color={Colors.teal} />
+                                <Text style={[styles.artistBtnText, { color: Colors.teal }]}>Pending Edit</Text>
+                            </TouchableOpacity>
+                        ) : profileData?.artistStatus === 'REJECTED' ? (
+                            // Bị từ chối => Nộp lại
+                            <TouchableOpacity
+                                style={[styles.artistBtn, { backgroundColor: '#8B0000' }]}
+                                onPress={() => router.push({
+                                    pathname: '/(tabs)/profile/register-artist',
+                                    params: { 
+                                        mode: 'retry',
+                                        stageName: profileData?.artistStageName || '',
+                                        bio: profileData?.artistBio || '',
+                                        avatarUrl: profileData?.artistAvatarUrl || '',
+                                        coverUrl: profileData?.artistCoverUrl || '',
+                                    }
+                                } as any)}>
+                                <Ionicons name="close-circle-outline" size={16} color={Colors.white} />
+                                <Text style={styles.artistBtnText}>Rejected — Retry</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            // Chưa đăng ký
+                            <TouchableOpacity
+                                style={styles.artistBtn}
+                                onPress={() => router.push('/(tabs)/profile/register-artist' as any)}>
+                                <Ionicons name="musical-notes-outline" size={16} color={Colors.white} />
+                                <Text style={styles.artistBtnText}>Register Artist</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
 
@@ -193,6 +253,12 @@ const styles = StyleSheet.create({
         width: 72, height: 72,
         borderRadius: 14,
         backgroundColor: '#2A2A2A',
+        borderWidth: 1, borderColor: '#333',
+        alignItems: 'center', justifyContent: 'center',
+    },
+    avatarImg: {
+        width: 72, height: 72,
+        borderRadius: 14,
         borderWidth: 1, borderColor: '#333',
     },
     profileInfo: { gap: 4 },
