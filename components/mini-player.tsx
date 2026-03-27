@@ -1,28 +1,22 @@
 import { Colors } from '@/constants/theme';
 import { useCurrentTrack } from '@/context/currentTrack-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useAudioPlayerStatus } from 'expo-audio';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-// Bắt buộc import hook này
-import { useAudioPlayerStatus } from 'expo-audio';
-
-// COMPONENT CHA: Kiểm tra null an toàn
 export default function MiniPlayer() {
     const context = useCurrentTrack();
-
     if (!context || !context.currentTrack || !context.player) return null;
-
     return <MiniPlayerUI currentTrack={context.currentTrack} player={context.player} />;
 }
 
-// COMPONENT CON: Xử lý giao diện
 function MiniPlayerUI({ currentTrack, player }: { currentTrack: any, player: any }) {
     const router = useRouter();
-    
-    // Lấy thông tin thời gian thực cực chuẩn xác
     const status = useAudioPlayerStatus(player);
+    const duration = status.duration > 0 ? status.duration : 1;
+    const progressPercent = (status.currentTime / duration) * 100;
 
     const handlePlayPause = (e: any) => {
         e.stopPropagation();
@@ -32,10 +26,6 @@ function MiniPlayerUI({ currentTrack, player }: { currentTrack: any, player: any
             player.play();
         }
     };
-
-    // Tính % thanh progress (bảo vệ lỗi chia cho 0)
-    const duration = status.duration > 0 ? status.duration : 1;
-    const progressPercent = (status.currentTime / duration) * 100;
 
     return (
         <View style={styles.wrapper}>
@@ -64,7 +54,6 @@ function MiniPlayerUI({ currentTrack, player }: { currentTrack: any, player: any
                 </View>
 
                 <View style={styles.controls}>
-                    {/* UI Tự Động Phản Ứng Theo Engine */}
                     <TouchableOpacity onPress={handlePlayPause}>
                         <Ionicons name={status.playing ? 'pause' : 'play'} size={28} color={Colors.white} />
                     </TouchableOpacity>
@@ -78,8 +67,6 @@ function MiniPlayerUI({ currentTrack, player }: { currentTrack: any, player: any
     );
 }
 
-// (Giữ nguyên phần StyleSheet của bạn)
-// const styles = StyleSheet.create({...});
 const styles = StyleSheet.create({
     wrapper: { width: '100%', paddingHorizontal: 10, zIndex: 9999 },
     container: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#2A2A2A', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, elevation: 10 },
@@ -90,20 +77,6 @@ const styles = StyleSheet.create({
     songArtist: { color: Colors.gray, fontSize: 11, marginTop: 2 },
     controls: { flexDirection: 'row', alignItems: 'center', gap: 15 },
     controlBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-    progressBarContainer: {
-        height: 3, // Độ dày của thanh (bạn có thể tăng lên 4 hoặc 5 nếu muốn nhìn rõ hơn)
-        backgroundColor: '#333333', // Màu nền của phần nhạc chưa phát tới
-        width: '100%',
-        overflow: 'hidden',
-        // Bo góc nhẹ ở phía trên để khớp với UI
-        borderTopLeftRadius: 4, 
-        borderTopRightRadius: 4,
-    },
-
-    // 2. Phần thanh trượt thể hiện % đã phát (Màu nổi bật)
-    progressBarFill: {
-        height: '100%',
-        backgroundColor: Colors.teal, // Màu chủ đạo của App (hoặc dùng mã màu như '#1DB954')
-        borderRadius: 4, // Bo tròn nhẹ đầu thanh trượt nhìn sẽ mềm mại hơn
-    },
+    progressBarContainer: { height: 3, backgroundColor: '#333333', width: '100%', overflow: 'hidden', borderTopLeftRadius: 4, borderTopRightRadius: 4},
+    progressBarFill: { height: '100%', backgroundColor: Colors.teal, borderRadius: 4},
 });
