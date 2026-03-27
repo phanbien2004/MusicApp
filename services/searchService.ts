@@ -32,8 +32,8 @@ export interface MemberContentType {
     id: number,
     avatarUrl: string,
     name: string,
-    isFollowed: boolean,
-    isFriend: boolean
+    isFollowed?: boolean,
+    friendStatus: "NONE" | "ACCEPTED" | "PENDING_SENT" | "PENDING_RECEIVED"
 }
 
 export interface ArtistContentType {
@@ -95,12 +95,5 @@ export async function searchAPI(data: SearchRequest, accessToken: string): Promi
             pageSize: data.pageSize
         }
     });
-
-    // const json = await res.json();
-
-    // if (!res.ok) {
-    //     throw new Error(json?.message || `Search failed (${res.status})`);
-    // }
-
     return res.data
 }

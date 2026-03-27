@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 
 import { useAuth } from '@/context/auth-context';
-import { useCurrentTrack } from '@/context/currentTrack-context';
+import { CurrentTrack, useCurrentTrack } from '@/context/currentTrack-context';
 import { searchAPI, SearchResponse } from '@/services/searchService';
 
 type Category = 'All' | 'Songs' | 'Albums' | 'Artists' | 'Users';
@@ -51,6 +51,8 @@ export default function SearchScreen() {
     const [keyword, setKeyword] = useState('');
     const [type, setType] = useState<'tracks' | 'albums' | 'members' | 'artists' | 'all'>('all');
     const [results, setResults] = useState<SearchResult[] | null>(null);
+
+    const trackURL = ["http://100.97.109.94:9000/songs/dau-nhat-la-lang-im.mp3?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260326T144158Z&X-Amz-SignedHeaders=host&X-Amz-Credential=aw2wTIIC3wXRzfAG3ECt%2F20260326%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Expires=600&X-Amz-Signature=e3def43bb227e87717e4c78ca9bc23fa96b88c25f038ab29811aad5cefa03a28", "http://100.97.109.94:9000/songs/van-su-nhu-y.mp3?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260326T144158Z&X-Amz-SignedHeaders=host&X-Amz-Credential=aw2wTIIC3wXRzfAG3ECt%2F20260326%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Expires=600&X-Amz-Signature=5118f62d6b1048eb8fef4c9ef20362e5e91c39ee69e9a848ed0a579daf430935", "http://100.97.109.94:9000/songs/co-ai-hen-ho-cung-em-chua.mp3?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260326T144158Z&X-Amz-SignedHeaders=host&X-Amz-Credential=aw2wTIIC3wXRzfAG3ECt%2F20260326%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Expires=600&X-Amz-Signature=589fbeb1adfb2a26e866ed1bab6ffd2111e1d659dafd5aac4c6297d0dbb730d8"]
 
 
     const handleTouchAddFriend = (id: string) => {
@@ -199,6 +201,64 @@ export default function SearchScreen() {
                         <Ionicons name="search-outline" size={52} color={Colors.gray} />
                         <Text style={styles.emptyText}>No results found</Text>
                         <Text style={styles.emptySubText}>Try a different keyword</Text>
+                    </View>
+                }
+                ListFooterComponent={
+                    <View style={{ marginTop: 20, paddingBottom: 20 }}>
+                        <Text style={[styles.resultTitle, { marginBottom: 10, color: Colors.gray }]}>Gợi ý cho bạn</Text>
+                        
+                        <TouchableOpacity
+                            style={styles.resultItem}
+                            onPress={() => {
+                                const track : CurrentTrack = {
+                                    id: 1,
+                                    title: "Đau nhất là lặng im",
+                                    thumbnailUrl: "string",
+                                    duration: 120,
+                                    contributors: [
+                                        {
+                                            id : 1,
+                                            name: "Erik",
+                                        }
+                                    ],
+                                    trackURL: require("@/assets/musics/testDemo.mp3")
+                                }
+                                setCurrentTrack(track);
+                                console.log("Current Track: ", track.title);
+                            }}
+                        >
+                            <Ionicons name="musical-note" size={20} color={Colors.gray} />
+                            <Text style={{ color: Colors.white }}>Đau nhất là lặng im</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity 
+                            style={styles.resultItem} 
+                            onPress={() => {
+                                const track : CurrentTrack = {
+                                    id: 1,
+                                    title: "Vạn sự như ý",
+                                    thumbnailUrl: "string",
+                                    duration: 120,
+                                    contributors: [
+                                        {
+                                            id : 1,
+                                            name: "Trúc Nhân",
+                                        }
+                                    ],
+                                    trackURL: require("@/assets/musics/testDemo2.mp3")
+                                }
+                                setCurrentTrack(track);
+                                console.log("Current Track: ", track.title);
+                            }}
+                        >
+                            <Ionicons name="musical-note" size={20} color={Colors.gray} />
+                            <Text style={{ color: Colors.white }}>Vạn sự như ý</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.resultItem} onPress={() => setKeyword('Có ai hẹn hò cùng em chưa')}>
+                            <Ionicons name="musical-note" size={20} color={Colors.gray} />
+                            <Text style={{ color: Colors.white }}>Có ai hẹn hò cùng em chưa</Text>
+                        </TouchableOpacity>
                     </View>
                 }
                 renderItem={({ item }) => {
