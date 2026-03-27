@@ -1,8 +1,8 @@
 import { Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert } from 'react-native';
 import {
@@ -19,7 +19,7 @@ import {
     Image,
 } from 'react-native';
 import { getPresignedUploadUrl, uploadFileToMinIO } from "@/services/storageService";
-import { createArtistProfileAPI } from "@/services/artistService";
+import { createArtistProfileAPI, updateArtistProfileAPI } from "@/services/artistService";
 
 const { width } = Dimensions.get('window');
 
@@ -70,15 +70,45 @@ const stepStyles = StyleSheet.create({
 // ─── Main Component ───────────────────────────────────────────────
 export default function RegisterArtistScreen() {
     const router = useRouter();
-    const [step, setStep] = useState(0); // 0=info (stage+bio+genres), 1=verify
+    const params = useLocalSearchParams();
+    // mode: undefined = đăng ký mới | 'update' = đang PENDING, muốn sửa | 'retry' = REJECTED, nộp lại
+    const isUpdateMode = params.mode === 'update';
+    const isRetryMode = params.mode === 'retry';
+
+    const [step, setStep] = useState(0);
     const [stageName, setStageName] = useState('');
     const [bio, setBio] = useState('');
     const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set(['Indie Pop', 'Lo-fi']));
-    // ─── Tách thành 2 State cho Ảnh ───
     const [agreed, setAgreed] = useState(false);
-    const [avatarFile, setAvatarFile] = useState<any>(null); // Avatar (1:1)
-    const [coverFile, setCoverFile] = useState<any>(null);   // Cover (16:9)
+    const [avatarFile, setAvatarFile] = useState<any>(null);
+    const [coverFile, setCoverFile] = useState<any>(null);
+    // URL ảnh cũ từ server (chỉ dùng để hiển thị preview khi không chọn ảnh mới)
+    const [existingAvatarUrl, setExistingAvatarUrl] = useState<string | null>(null);
+    const [existingCoverUrl, setExistingCoverUrl] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isLoadingData, setIsLoadingData] = useState(isUpdateMode); // chỉ loading khi mode=update
+
+    // Load data cũ nếu đang ở mode update (PENDING) hoặc retry (REJECTED)
+    useEffect(() => {
+        if (!isUpdateMode && !isRetryMode) return;
+        const loadExistingData = async () => {
+            try {
+                const stagNameParam = params.stageName as string;
+                const bioParam = params.bio as string;
+                const avatarUrlParam = params.avatarUrl as string;
+                const coverUrlParam = params.coverUrl as string;
+                if (stagNameParam) setStageName(stagNameParam);
+                if (bioParam) setBio(bioParam);
+                if (avatarUrlParam) setExistingAvatarUrl(avatarUrlParam);
+                if (coverUrlParam) setExistingCoverUrl(coverUrlParam);
+            } catch (e) {
+                console.log('Lỗi load data cũ:', e);
+            } finally {
+                setIsLoadingData(false);
+            }
+        };
+        loadExistingData();
+    }, [isUpdateMode, isRetryMode]);
 
     // Bật tắt thẻ Genre
     const toggleGenre = (g: string) => {
@@ -110,40 +140,69 @@ export default function RegisterArtistScreen() {
         }
     };
 
-    // Hàm xử lý Submit Toàn Bộ
+    // Hàm xử lý Submit — tự động chọn create hay update
     const handleSubmit = async () => {
         if (!agreed) return Alert.alert("Cảnh báo", "Bạn cần đồng ý với điều khoản!");
-        if (!stageName || !avatarFile || !coverFile) return Alert.alert("Cảnh báo", "Vui lòng nhập tên và chọn ĐỦ CẢ 2 ẢNH!");
+        if (!stageName) return Alert.alert("Cảnh báo", "Vui lòng nhập tên nghệ danh!");
+        // Khi update: không bắt buộc chọn ảnh mới (có thể giữ ảnh cũ)
+        if (!isUpdateMode && (!avatarFile || !coverFile)) {
+            return Alert.alert("Cảnh báo", "Vui lòng chọn đủ cả 2 ảnh!");
+        }
         
         setIsSubmitting(true);
         try {
-            console.log("=> Xin Presigned URL cho Avatar và Cover...");
-            // Xin Link song song cho nhanh (hoặc tuần tự nếu muốn)
-            const [avatarRes, coverRes] = await Promise.all([
-                getPresignedUploadUrl(avatarFile.name, avatarFile.type, "avatars"),
-                getPresignedUploadUrl(coverFile.name, coverFile.type, "covers")
-            ]);
+            let finalAvatarKey: string | undefined;
+            let finalCoverKey: string | undefined;
 
-            console.log("=> Đang đẩy 2 File lên MinIO...");
-            await Promise.all([
-                uploadFileToMinIO(avatarFile.uri, avatarFile.type, avatarRes.url),
-                uploadFileToMinIO(coverFile.uri, coverFile.type, coverRes.url)
-            ]);
+            // Upload Avatar mới nếu có chọn, ngược lại giữ key cũ (backend sẽ giữ nguyên)
+            if (avatarFile) {
+                console.log("=> Upload Avatar mới...");
+                const avatarRes = await getPresignedUploadUrl(avatarFile.name, avatarFile.type, "avatars");
+                await uploadFileToMinIO(avatarFile.uri, avatarFile.type, avatarRes.url);
+                finalAvatarKey = avatarRes.key;
+            }
 
-            console.log("=> Hoàn tất MinIO! Tạo hồ sơ Nghệ sĩ Backend...");
-            const responseData = await createArtistProfileAPI({
-                stageName: stageName,
-                bio: bio,
-                avatarKey: avatarRes.key, // Lấy đúng Key của từng ảnh gửi xuống
-                coverKey: coverRes.key
-            });
-            console.log("=> Request Thành Công:", responseData);
-            Alert.alert("Thành công!", "Đã gửi yêu cầu đăng ký Nghệ sĩ.");
-            router.back();
+            // Upload Cover mới nếu có chọn
+            if (coverFile) {
+                console.log("=> Upload Cover mới...");
+                const coverRes = await getPresignedUploadUrl(coverFile.name, coverFile.type, "covers");
+                await uploadFileToMinIO(coverFile.uri, coverFile.type, coverRes.url);
+                finalCoverKey = coverRes.key;
+            }
+
+            const payload = {
+                stageName,
+                bio,
+                ...(finalAvatarKey && { avatarKey: finalAvatarKey }),
+                ...(finalCoverKey && { coverKey: finalCoverKey }),
+            };
+
+            if (isUpdateMode) {
+                console.log("=> Cập nhật hồ sơ Nghệ sĩ (PENDING update)...");
+                await updateArtistProfileAPI(payload);
+            } else {
+                // mode=undefined (mới) hoặc mode=retry (REJECTED)
+                console.log("=> Tạo/nộp lại yêu cầu Nghệ sĩ...");
+                await createArtistProfileAPI({
+                    stageName,
+                    bio,
+                    avatarKey: finalAvatarKey!,
+                    coverKey: finalCoverKey!,
+                });
+            }
+
+            Alert.alert("Success!", isUpdateMode ? "Your profile has been updated." : "Your artist registration has been submitted.");
+            
+            // Go back to profile
+            if (router.canGoBack()) {
+                router.back();
+            } else {
+                router.replace('/(tabs)/profile' as any);
+            }
         } catch (error: any) {
-            console.log("=> Lỗi đăng ký:", error);
+            console.log("=> Lỗi:", error);
             const errMsg = error.response?.data?.message || error.message || JSON.stringify(error);
-            Alert.alert("Lỗi", "Chi tiết lỗi: " + errMsg);
+            Alert.alert("Lỗi", errMsg);
         } finally {
             setIsSubmitting(false);
         }
@@ -161,7 +220,9 @@ export default function RegisterArtistScreen() {
                         onPress={() => step === 0 ? router.back() : setStep(0)}>
                         <Ionicons name="chevron-back" size={20} color={Colors.white} />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Artist Portal</Text>
+                    <Text style={styles.headerTitle}>
+                        {isUpdateMode ? 'Edit Artist Profile' : 'Artist Portal'}
+                    </Text>
                     <View style={{ width: 36 }} />
                 </View>
                 <View style={styles.stepBarWrapper}>
@@ -266,10 +327,12 @@ export default function RegisterArtistScreen() {
                         <Text style={styles.fieldLabel}>CHOOSE IMAGES</Text>
 
                         <View style={styles.imagesContainer}>
-                            {/* Avatar Box (1:1) */}
-                            <TouchableOpacity style={[styles.avatarUploadBox, avatarFile && { padding: 0 }]} onPress={() => pickImageParams(true)}>
+                            {/* Avatar Box (1:1) — hiển thị ảnh mới chọn hoặc URL cũ */}
+                            <TouchableOpacity style={[styles.avatarUploadBox, (avatarFile || existingAvatarUrl) && { padding: 0 }]} onPress={() => pickImageParams(true)}>
                                 {avatarFile ? (
                                     <Image source={{ uri: avatarFile.uri }} style={styles.avatarImagePreview} resizeMode="cover" />
+                                ) : existingAvatarUrl ? (
+                                    <Image source={{ uri: existingAvatarUrl }} style={styles.avatarImagePreview} resizeMode="cover" />
                                 ) : (
                                     <>
                                         <Ionicons name="person-circle-outline" size={32} color={Colors.teal} />
@@ -278,10 +341,12 @@ export default function RegisterArtistScreen() {
                                 )}
                             </TouchableOpacity>
 
-                            {/* Cover Box (16:9) */}
-                            <TouchableOpacity style={[styles.coverUploadBox, coverFile && { padding: 0 }]} onPress={() => pickImageParams(false)}>
+                            {/* Cover Box (16:9) — hiển thị ảnh mới chọn hoặc URL cũ */}
+                            <TouchableOpacity style={[styles.coverUploadBox, (coverFile || existingCoverUrl) && { padding: 0 }]} onPress={() => pickImageParams(false)}>
                                 {coverFile ? (
                                     <Image source={{ uri: coverFile.uri }} style={styles.coverImagePreview} resizeMode="cover" />
+                                ) : existingCoverUrl ? (
+                                    <Image source={{ uri: existingCoverUrl }} style={styles.coverImagePreview} resizeMode="cover" />
                                 ) : (
                                     <>
                                         <Ionicons name="image-outline" size={32} color={Colors.teal} />
@@ -320,7 +385,7 @@ export default function RegisterArtistScreen() {
                                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                                 style={styles.nextBtn}>
                                 <Text style={styles.nextBtnText}>
-                                    {isSubmitting ? "ĐANG TIẾN HÀNH..." : "SUBMIT"}
+                                    {isSubmitting ? "Processing..." : (isUpdateMode ? "SUBMIT UPDATE" : isRetryMode ? "RESUBMIT" : "SUBMIT APPLICATION")}
                                 </Text>
                             </LinearGradient>
                         </TouchableOpacity>

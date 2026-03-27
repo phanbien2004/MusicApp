@@ -47,15 +47,9 @@ apiClient.interceptors.response.use(
     (response: AxiosResponse) => response, 
     async (error) => {
         const originalRequest = error.config;
+        const isUnauthorized = error.response?.status === 401;
 
-        // KIỂM TRA LỖI: Dựa trên log thực tế của bạn
-        // error.response.data là { "error": "AccessToken expired!" }
-        const errorData = error.response?.data;
-        const isTokenExpired = 
-            error.response?.status === 401 && 
-            errorData?.error === "AccessToken expired!";
-
-        if (isTokenExpired && !originalRequest._retry) {
+        if (isUnauthorized && !originalRequest._retry) {
             
             // Trường hợp: Có nhiều request cùng lỗi, đẩy vào hàng đợi nằm chờ
             if (isRefreshing) {
@@ -74,11 +68,10 @@ apiClient.interceptors.response.use(
             isRefreshing = true;
 
             try {
-                console.log("=> Hệ thống phát hiện Token hết hạn. Đang tự động làm mới...");
+                console.log("=> Hệ thống phát hiện lỗi 401. Đang thử làm mới Token...");
                 
                 const curRefreshToken = await AsyncStorage.getItem('refreshToken');
-                console.log("ABdhfgdfa", curRefreshToken);
-                if (!curRefreshToken) throw new Error("Không tìm thấy Refresh Token trong máy.");
+                if (!curRefreshToken) throw new Error("Không tìm thấy Refresh Token.");
 
                 // Gọi API refresh từ authService
                 console.log("Truoc response");
@@ -102,12 +95,9 @@ apiClient.interceptors.response.use(
                 return apiClient(originalRequest);
 
             } catch (refreshError) {
-                // Nếu cả Refresh Token cũng hỏng (hết hạn hoàn toàn)
+                console.log("=> Refresh Token thất bại. Yêu cầu đăng nhập lại.");
                 processQueue(refreshError, null);
-                await AsyncStorage.multiRemove(['accessToken', 'refreshToken']);
-                console.error("Phiên đăng nhập đã hết hạn hoàn toàn. Vui lòng đăng nhập lại.");
-                
-                // Bạn có thể thêm logic điều hướng về Login tại đây (ví dụ dùng EventEmitter)
+                await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'userId']);
                 return Promise.reject(refreshError);
             } finally {
                 isRefreshing = false;

@@ -15,7 +15,12 @@ export interface ProfileResponse {
     friendCount: number,
     playlistCount: number,
     playlists: PlayList[],
-    isArtist?: boolean // (Phải nhờ Backend trả về thêm trường này để FE biết)
+    artistStatus?: 'NONE' | 'PENDING' | 'VERIFIED' | 'REJECTED',
+    // — Thông tin Nghệ sĩ (Backend cần trả về thêm các trường này)
+    artistStageName?: string,
+    artistBio?: string,
+    artistAvatarUrl?: string,
+    artistCoverUrl?: string,
 }
 
 export const getProfileAPI = async (id: string) : Promise<ProfileResponse> => {
@@ -23,6 +28,14 @@ export const getProfileAPI = async (id: string) : Promise<ProfileResponse> => {
     const res = await apiClient.get(`${BASE_URL}/api/v1/member/getProfile/${id}`);
     const profileData = res.data as ProfileResponse;
     console.log("Responseres GetProfileAPI: ", profileData);
+    return profileData;
+}
+
+export const getMyProfileAPI = async () : Promise<ProfileResponse> => {
+    console.log(`GetMyProfileAPI: ${BASE_URL}/api/v1/member/myProfile`);
+    const res = await apiClient.get(`${BASE_URL}/api/v1/member/myProfile`);
+    const profileData = res.data as ProfileResponse;
+    console.log("Response GetMyProfileAPI: ", profileData);
     return profileData;
 }
 

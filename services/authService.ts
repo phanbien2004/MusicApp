@@ -72,7 +72,7 @@ export async function loginAPI(data: LoginRequest): Promise<AuthResponse> {
 
 export async function refreshTokenAPI(refreshToken: string): Promise<RefreshResponse> {
     const res = await fetch(`${BASE_URL}/api/v1/auth/refresh`, {
-        method: 'POST', 
+        method: 'GET', 
         headers: {
             'Authorization': "Bearer " + refreshToken,
             'Content-Type': 'application/json'

@@ -1,6 +1,8 @@
 import apiClient from "@/api/apiClient";
 import { BASE_URL } from "@/constants/baseURL";
 
+import * as FileSystem from 'expo-file-system/legacy';
+
 // 1. Xin Presigned URL từ Backend
 export const getPresignedUploadUrl = async (fileName: string, fileType: string, bucketName: string) => {
     const res = await apiClient.post(`${BASE_URL}/api/v1/storage/upload`, {
@@ -11,22 +13,17 @@ export const getPresignedUploadUrl = async (fileName: string, fileType: string, 
     return res.data;
 };
 
-// 2. Upload file trực tiếp lên MinIO (Sử dụng fetch thuần để tránh kẹp Token)
+// 2. Upload file trực tiếp lên MinIO
 export const uploadFileToMinIO = async (fileUri: string, fileType: string, presignedUrl: string) => {
-    const response = await fetch(fileUri);
-    const blob = await response.blob();
-
-    // Đẩy PUT request thẳng lên MinIO
-    const uploadRes = await fetch(presignedUrl, {
-        method: "PUT",
+    const uploadRes = await FileSystem.uploadAsync(presignedUrl, fileUri, {
+        httpMethod: 'PUT',
         headers: {
-            "Content-Type": fileType, // trùng với fileType lúc lấy Presigned URL
+            "Content-Type": fileType,
         },
-        body: blob,
     });
 
-    if (!uploadRes.ok) {
-        throw new Error("Lỗi khi upload MinIO: " + uploadRes.statusText);
+    if (uploadRes.status < 200 || uploadRes.status >= 300) {
+        throw new Error("Lỗi khi upload MinIO: Status " + uploadRes.status);
     }
     return true;
 };

@@ -79,7 +79,7 @@ export default function EditProfileScreen() {
 
             console.log("=> Thành công:", responseData);
             Alert.alert("Thành công", "Đã cập nhật hồ sơ!");
-            router.back();
+            router.replace('/(tabs)/profile' as any); // Chuyển thẳng về trang cá nhân
             
         } catch (error: any) {
             console.log("=> Lỗi cập nhật:", error);
