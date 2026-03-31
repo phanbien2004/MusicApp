@@ -17,6 +17,7 @@ import {
 
 import { useAuth } from '@/context/auth-context';
 import { CurrentTrack, useCurrentTrack } from '@/context/currentTrack-context';
+import { acceptFriendAPI, addFriendAPI, deleteFriendAPI, deleteFriendRequestAPI } from '@/services/friendService';
 import { searchAPI, SearchResponse } from '@/services/searchService';
 
 type Category = 'All' | 'Songs' | 'Albums' | 'Artists' | 'Users';
@@ -26,15 +27,13 @@ const CATEGORIES: Category[] = ['All', 'Songs', 'Albums', 'Artists', 'Users'];
 interface SearchResult extends SearchResponse {
     type: 'Tracks' | 'Albums' | 'Users' | 'Artists';
     id: number;
-    // Thuộc tính của Tracks/Albums
     title?: string;
     thumbnailUrl?: string;
     duration?: number;
-    // Thuộc tính của Members/Artists
     name?: string;
     avatarUrl?: string;
     followed?: boolean;
-    friend?: boolean;
+    friendStatus?: "ACCEPTED" | "NONE" | "PENDING_RECEIVED" | "PENDING_SENT";
 }
 
 export default function SearchScreen() {
@@ -55,19 +54,69 @@ export default function SearchScreen() {
     const trackURL = ["http://100.97.109.94:9000/songs/dau-nhat-la-lang-im.mp3?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260326T144158Z&X-Amz-SignedHeaders=host&X-Amz-Credential=aw2wTIIC3wXRzfAG3ECt%2F20260326%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Expires=600&X-Amz-Signature=e3def43bb227e87717e4c78ca9bc23fa96b88c25f038ab29811aad5cefa03a28", "http://100.97.109.94:9000/songs/van-su-nhu-y.mp3?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260326T144158Z&X-Amz-SignedHeaders=host&X-Amz-Credential=aw2wTIIC3wXRzfAG3ECt%2F20260326%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Expires=600&X-Amz-Signature=5118f62d6b1048eb8fef4c9ef20362e5e91c39ee69e9a848ed0a579daf430935", "http://100.97.109.94:9000/songs/co-ai-hen-ho-cung-em-chua.mp3?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260326T144158Z&X-Amz-SignedHeaders=host&X-Amz-Credential=aw2wTIIC3wXRzfAG3ECt%2F20260326%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Expires=600&X-Amz-Signature=589fbeb1adfb2a26e866ed1bab6ffd2111e1d659dafd5aac4c6297d0dbb730d8"]
 
 
-    const handleTouchAddFriend = (id: string) => {
+    const handleTouchAddFriend = async (id: string) => {
         console.log("Add friend with id:", id);
-        const newResults   = results?.map(item => {
-            if(item.type === 'Users' && item.id.toString() === id) {
-                const tmp = item.friend;
-                return {...item, friend: !tmp};
+        const res = await addFriendAPI(id);
+        if(res === "Sent friend request successfully!") {
+            const newResults = results?.map((item): SearchResult => { 
+                if(item.type === 'Users' && item.id.toString() === id) {
+                    return {...item, friendStatus: "PENDING_SENT"};
+                }
+                return item;
+            });
+            if(newResults) {
+                setResults(newResults);
             }
-            return item;
-        })
-        if(newResults) {
-            setResults(newResults);
         }
     };
+
+    const handleTouchAcceptFriend = async (id: string) => {
+        console.log("Accept friend with id:", id);
+        const res = await acceptFriendAPI(id);
+        if(res === "Friend request accepted successfully!") {
+            const newResults = results?.map((item): SearchResult => { 
+                if(item.type === 'Users' && item.id.toString() === id) {
+                    return {...item, friendStatus: "ACCEPTED"};
+                }
+                return item;
+            });
+            if(newResults) {
+                setResults(newResults);
+            }
+        }
+    }
+
+    const handleTouchDeleteFriend = async (id: string) => {
+        console.log("Delete friend with id:", id);
+        const res = await deleteFriendAPI(id);
+        if(res === "Deleted friend successfully!") {
+            const newResults = results?.map((item): SearchResult => { 
+                if(item.type === 'Users' && item.id.toString() === id) {
+                    return {...item, friendStatus: "NONE"};
+                }
+                return item;
+            });
+            if(newResults) {
+                setResults(newResults);
+            }
+        }
+    }
+
+    const handleTouchDeleteFriendRequest = async (id: string) => {
+        console.log("Delete friend request with id:", id);
+        const res = await deleteFriendRequestAPI(id);
+        if(res === "Deleted friend request successfully!") {
+            const newResults = results?.map((item): SearchResult => { 
+                if(item.type === 'Users' && item.id.toString() === id) {
+                    return {...item, friendStatus: "NONE"};
+                }
+                return item;
+            });
+            if(newResults) {
+                setResults(newResults);
+            }
+        }
+    }
 
     const filterData = (searchResponse: SearchResponse) => {
         const filteredResults: SearchResult[] = [];
@@ -193,6 +242,10 @@ export default function SearchScreen() {
             {/* ─── RESULTS ─── */}
             <FlatList
                 data={results}
+                keyExtractor={(item, index) => {
+                    const id = item.id ? item.id.toString() : `idx-${index}`;
+                    return `${item.type}-${id}-${index}`;
+                }}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.listContent}
                 ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -283,19 +336,33 @@ export default function SearchScreen() {
                                 <View style={styles.resultInfo}>
                                     <Text style={styles.resultTitle}>{item.name}</Text>
                                 </View>
-                                {item.friend ?  (
+                                {item.friendStatus === "PENDING_SENT" ?  (
                                     <TouchableOpacity 
                                         style={styles.actionBtn}
-                                        onPress={() => handleTouchAddFriend(item.id.toString())}
+                                        onPress={() => handleTouchDeleteFriendRequest(item.id.toString())}
                                     > 
                                         <Text style={styles.actionBtnText}>Added</Text>
                                     </TouchableOpacity>
-                                ) : (
+                                ) : item.friendStatus === "NONE" ? (
                                     <TouchableOpacity 
                                         style={[styles.actionBtn, styles.actionBtnActive]}
                                         onPress={() => handleTouchAddFriend(item.id.toString())}
                                     > 
                                         <Text>Add</Text>
+                                    </TouchableOpacity>
+                                ) : item.friendStatus === "PENDING_RECEIVED" ? (
+                                    <TouchableOpacity 
+                                        style={[styles.actionBtn, styles.actionBtnActive]}
+                                        onPress={() => handleTouchAcceptFriend(item.id.toString())}
+                                    > 
+                                        <Text>Accept</Text>
+                                    </TouchableOpacity>
+                                ) : (
+                                    <TouchableOpacity 
+                                        style={[styles.actionBtn, styles.actionBtnActive]}
+                                        onPress={() => handleTouchDeleteFriend(item.id.toString())}
+                                    > 
+                                        <Text>Friend</Text>
                                     </TouchableOpacity>
                                 )}
                             </View>
