@@ -23,7 +23,6 @@ export const uploadFileToMinIO = async (fileUri: string, fileType: string, presi
     const uploadRes = await fetch(presignedUrl, {
         headers: {
             "Content-Type": fileType,
-
         },
         method: "PUT",
         body: blob
