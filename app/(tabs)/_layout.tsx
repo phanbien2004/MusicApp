@@ -16,7 +16,8 @@ function TabLayoutInner() {
     const pathname = usePathname();
     // Tất cả màn hình ẩn (href: null) — cần giữ tab cuối sáng
     const HIDDEN_SCREENS = ['player/currentTrack', 'jam/setupjam', 'jam/joinjam', 'notifications', 
-    'jam/jamroom', 'jam/jamnotification', 'jam/jamsettings', 'profile/register-artist', 'profile/addlist', 'profile/edit-profile'];
+    'jam/jamroom', 'jam/jamnotification', 'jam/jamsettings', 'profile/register-artist', 'profile/addlist', 'profile/edit-profile',
+    'profile/my-subscription', 'profile/account-settings'];
     const isHiddenScreen = HIDDEN_SCREENS.some(s => pathname.includes(s));
 
     // Lấy lastActiveTab từ context thay vì local state
@@ -140,6 +141,14 @@ function TabLayoutInner() {
             />
             <Tabs.Screen
                 name="profile/edit-profile"
+                options={{ href: null, headerShown: false }}
+            />
+            <Tabs.Screen
+                name="profile/my-subscription"
+                options={{ href: null, headerShown: false }}
+            />
+            <Tabs.Screen
+                name="profile/account-settings"
                 options={{ href: null, headerShown: false }}
             />
         </Tabs>

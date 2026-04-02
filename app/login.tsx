@@ -3,6 +3,7 @@ import { useAuth } from '@/context/auth-context';
 import { loginAPI } from '@/services/authService';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { jwtDecode } from 'jwt-decode';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -35,11 +36,6 @@ export default function LoginScreen() {
         if (!email.trim()) return setError('Vui lòng nhập email.');
         if (!password.trim()) return setError('Vui lòng nhập mật khẩu.');
 
-        if(email === "admin@gmail.com" && password === "admin") {
-            router.replace("/(admin)/dashboard");
-            return
-        }
-
         try {
             setLoading(true);
             const res = await loginAPI({
@@ -48,21 +44,37 @@ export default function LoginScreen() {
             });
             console.log('[Login response]', res);
 
-            // Kiểm tra response có đủ token không
+            // Kiểm tra response
             if (res.message === "Account not found!") {
                 setError("Tài khoản không tồn tại!");
             } else if (res.message === "Invalid credentials!") {
                 setError("Mật khẩu không chính xác!");
-            }
-            else {
-                if(res.accessToken && res.refreshToken){
+            } else {
+                if (res.accessToken && res.refreshToken) {
                     await AsyncStorage.setItem('accessToken', res.accessToken);
                     await AsyncStorage.setItem('refreshToken', res.refreshToken);
                     await AsyncStorage.setItem('userId', JSON.stringify(res.userId));
                     login(res.accessToken, res.refreshToken);
-                    router.replace('/(tabs)/home');
-                }else{
-                    setError("Failed to retrieve authentication token.")
+                    
+                    try {
+                        const decoded: any = jwtDecode(res.accessToken);
+                        // Spring backend usually maps roles to 'role', 'roles', or 'authorities'
+                        const role = decoded.role || decoded.roles || decoded.authorities || [];
+                        const isAdmin = Array.isArray(role) 
+                            ? role.some((r: string) => r.includes('ADMIN')) 
+                            : String(role).includes('ADMIN');
+
+                        if (isAdmin) {
+                            router.replace('/(admin)/dashboard');
+                        } else {
+                            router.replace('/(tabs)/home');
+                        }
+                    } catch (e) {
+                        console.log("JWT decode error:", e);
+                        router.replace('/(tabs)/home');
+                    }
+                } else {
+                    setError("Failed to retrieve authentication token.");
                 }
             }
         } catch (err: any) {

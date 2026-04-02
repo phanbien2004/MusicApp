@@ -4,8 +4,8 @@ import { BASE_URL } from "@/constants/baseURL";
 
 // 1. Xin Presigned URL từ Backend
 export const getPresignedUploadUrl = async (fileName: string, fileType: string, bucketName: string) => {
-    console.log("Get PresignedUploadUrl: ", `${BASE_URL}/upload`);
-    const res = await apiClient.post(`${BASE_URL}/upload`, {
+    console.log("Get PresignedUploadUrl: ", `${BASE_URL}/api/v1/storage/upload`);
+    const res = await apiClient.post(`${BASE_URL}/api/v1/storage/upload`, {
         fileName,
         fileType,
         bucketName
@@ -16,9 +16,16 @@ export const getPresignedUploadUrl = async (fileName: string, fileType: string, 
 
 // 2. Upload file trực tiếp lên MinIO
 export const uploadFileToMinIO = async (fileUri: string, fileType: string, presignedUrl: string) => {
-    console.log("Put FileTiMinIO");
+    console.log("Put File To MinIO");
+    
+    // Nếu backend chạy Minio ở localhost:9000, thay localhost bằng hostname chung để app thật gọi được
+    let finalUploadUrl = presignedUrl;
+    try {
+        const baseIp = new URL(BASE_URL).hostname;
+        finalUploadUrl = finalUploadUrl.replace('localhost', baseIp);
+    } catch {}
+
     const response = await fetch(fileUri);
-    console.log(response);
     const blob = await response.blob();
     const uploadRes = await fetch(presignedUrl, {
         headers: {
