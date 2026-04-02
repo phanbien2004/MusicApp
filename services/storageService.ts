@@ -19,11 +19,11 @@ export const uploadFileToMinIO = async (fileUri: string, fileType: string, presi
     console.log("Put File To MinIO");
     
     // Nếu backend chạy Minio ở localhost:9000, thay localhost bằng hostname chung để app thật gọi được
-    let finalUploadUrl = presignedUrl;
-    try {
-        const baseIp = new URL(BASE_URL).hostname;
-        finalUploadUrl = finalUploadUrl.replace('localhost', baseIp);
-    } catch {}
+    // let finalUploadUrl = presignedUrl;
+    // try {
+    //     const baseIp = new URL(BASE_URL).hostname;
+    //     finalUploadUrl = finalUploadUrl.replace('localhost', baseIp);
+    // } catch {}
 
     const response = await fetch(fileUri);
     const blob = await response.blob();

@@ -40,33 +40,6 @@ const initialQueue: QueueItem[] = [
     { id: '5', title: 'Muộn Rồi Mà Sao Còn', artist: 'Sơn Tùng MTP', isCurrent: false },
 ];
 
-const track1 : CurrentTrack = {
-    id: 1,
-    title: "Đau nhất là lặng im",
-    thumbnailUrl: "string",
-    duration: 120,
-    contributors: [
-        {
-            id : 1,
-            name: "Erik",
-        }
-    ],
-    trackURL: require("@/assets/musics/testDemo.mp3")
-}
-
-const track2 : CurrentTrack = {
-    id: 1,
-    title: "Vạn sự như ý",
-    thumbnailUrl: "string",
-    duration: 120,
-    contributors: [
-        {
-            id : 1,
-            name: "Trúc Nhân",
-        }
-    ],
-    trackURL: require("@/assets/musics/testDemo2.mp3")
-}
 
 const formatTime = (timeInSeconds: number) => {
     if (!timeInSeconds || isNaN(timeInSeconds)) return "0:00";
