@@ -49,7 +49,7 @@ export default function SignupScreen() {
             if (res.message === "Account already exists!") {
                 setError("Email đã tồn tại!")
             } else {
-                login(res.accessToken, res.refreshToken);
+                login(res.accessToken ?? undefined, res.refreshToken ?? undefined);
                 Alert.alert(
                     '🎉 Đăng ký thành công!',
                     `Chào mừng bạn đến với MusicApp, ${username.trim()}!\nTài khoản của bạn đã được tạo.`,

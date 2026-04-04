@@ -1,5 +1,4 @@
 import { Colors } from '@/constants/theme';
-import { useAuth } from '@/context/auth-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
@@ -16,8 +15,8 @@ import {
     View,
 } from 'react-native';
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getProfileAPI, ProfileResponse } from '@/services/profileService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 const PLAYLIST_CARD = (width - 48 - 12) / 2;
@@ -104,14 +103,14 @@ export default function ProfileScreen() {
 
                     {/* Action buttons (Only Artist stuff) */}
                     <View style={styles.actionsRow}>
-                        {profileData?.artistStatus === 'VERIFIED' ? (
+                        {profileData?.artistProfileStatus === 'VERIFIED' ? (
                             <TouchableOpacity
                                 style={[styles.artistBtn, { backgroundColor: '#33D294' }]}
                                 onPress={() => router.push('/(tabs)/profile/artist-portal' as any)}>
                                 <Ionicons name="star" size={16} color={Colors.white} />
                                 <Text style={styles.artistBtnText}>Artist Portal</Text>
                             </TouchableOpacity>
-                        ) : profileData?.artistStatus === 'PENDING' ? (
+                        ) : profileData?.artistProfileStatus === 'PENDING' ? (
                             <TouchableOpacity
                                 style={[styles.artistBtn, { borderColor: Colors.teal, borderWidth: 1, backgroundColor: 'transparent' }]}
                                 onPress={() => router.push({
@@ -121,7 +120,7 @@ export default function ProfileScreen() {
                                 <Ionicons name="time-outline" size={16} color={Colors.teal} />
                                 <Text style={[styles.artistBtnText, { color: Colors.teal }]}>Pending Edit</Text>
                             </TouchableOpacity>
-                        ) : profileData?.artistStatus === 'REJECTED' ? (
+                        ) : profileData?.artistProfileStatus === 'REJECTED' ? (
                             <TouchableOpacity
                                 style={[styles.artistBtn, { backgroundColor: '#8B0000' }]}
                                 onPress={() => router.push({

@@ -3,9 +3,9 @@ import { useAuth } from '@/context/auth-context';
 import { loginAPI } from '@/services/authService';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { jwtDecode } from 'jwt-decode';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { jwtDecode } from 'jwt-decode';
 import React, { useState } from 'react';
 import {
     ActivityIndicator,
@@ -58,11 +58,13 @@ export default function LoginScreen() {
                     
                     try {
                         const decoded: any = jwtDecode(res.accessToken);
+                        console.log("Decoded JWT:", decoded);
                         // Spring backend usually maps roles to 'role', 'roles', or 'authorities'
                         const role = decoded.role || decoded.roles || decoded.authorities || [];
                         const isAdmin = Array.isArray(role) 
                             ? role.some((r: string) => r.includes('ADMIN')) 
                             : String(role).includes('ADMIN');
+                        console.log("Is Admin?", isAdmin);
 
                         if (isAdmin) {
                             router.replace('/(admin)/dashboard');
