@@ -13,7 +13,8 @@ export interface TrackContentType {
     title: string,
     thumbnailUrl: string,
     duration: number,
-    contributors: TrackContributorType[]
+    contributors: TrackContributorType[],
+    // trackUrl: string
 }
 
 export interface TrackContributorType {
@@ -84,8 +85,7 @@ export interface SearchResponse {
     artistPreviewDTOS?: ArtistPreviewDTOS;
 }
 
-export async function searchAPI(data: SearchRequest, accessToken: string): Promise<SearchResponse> {
-    console.log(accessToken);
+export async function searchAPI(data: SearchRequest): Promise<SearchResponse> {
     console.log(`${BASE_URL}/api/v1/search?keyword=${(data.keyword)}&type=${data.type}&pageNumber=${data.pageNumber}&pageSize=${data.pageSize}`)
     const res = await apiClient.get('/api/v1/search', {
         params: {
@@ -95,5 +95,6 @@ export async function searchAPI(data: SearchRequest, accessToken: string): Promi
             pageSize: data.pageSize
         }
     });
+    console.log("Response SearchAPI: ", res.data);
     return res.data
 }

@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { jwtDecode } from 'jwt-decode';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { jwtDecode } from 'jwt-decode';
 import React, { useState } from 'react';
 import {
     ActivityIndicator,
@@ -58,11 +59,13 @@ export default function LoginScreen() {
                     
                     try {
                         const decoded: any = jwtDecode(res.accessToken);
+                        console.log("Decoded JWT:", decoded);
                         // Spring backend usually maps roles to 'role', 'roles', or 'authorities'
                         const role = decoded.role || decoded.roles || decoded.authorities || [];
                         const isAdmin = Array.isArray(role) 
                             ? role.some((r: string) => r.includes('ADMIN')) 
                             : String(role).includes('ADMIN');
+                        console.log("Is Admin?", isAdmin);
 
                         if (isAdmin) {
                             router.replace('/(admin)/dashboard');
@@ -180,7 +183,7 @@ export default function LoginScreen() {
 
                     {/* ─── SIGN UP LINK ─── */}
                     <View style={styles.signupRow}>
-                        <Text style={styles.signupHint}>DON'T HAVE AN ACCOUNT? </Text>
+                        <Text style={styles.signupHint}>DON&apos;T HAVE AN ACCOUNT? </Text>
                         <TouchableOpacity onPress={() => router.push('/signup')}>
                             <Text style={styles.signupLink}>SIGN UP</Text>
                         </TouchableOpacity>
