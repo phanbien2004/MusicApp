@@ -2,11 +2,21 @@ import apiClient from "@/api/apiClient";
 import { BASE_URL } from "@/constants/baseURL";
 
 
+// Hàm chuẩn hóa tên file: Không dấu, khoảng trắng thay bằng gạch ngang
+function sanitizeFileName(name: string) {
+    if(!name) return `file-${Date.now()}`;
+    let str = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    str = str.replace(/đ/g, "d").replace(/Đ/g, "D");
+    str = str.replace(/\s+/g, '-');
+    return str;
+}
+
 // 1. Xin Presigned URL từ Backend
 export const getPresignedUploadUrl = async (fileName: string, fileType: string, bucketName: string) => {
+    const cleanName = sanitizeFileName(fileName);
     console.log("Get PresignedUploadUrl: ", `${BASE_URL}/api/v1/storage/upload`);
     const res = await apiClient.post(`${BASE_URL}/api/v1/storage/upload`, {
-        fileName,
+        fileName: cleanName,
         fileType,
         bucketName
     });

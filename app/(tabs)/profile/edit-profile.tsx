@@ -17,6 +17,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import Toast from 'react-native-root-toast';
 
 export default function EditProfileScreen() {
     const router = useRouter();
@@ -51,7 +52,7 @@ export default function EditProfileScreen() {
 
     const handleSave = async () => {
         if (!displayName.trim()) {
-            return Alert.alert("Lỗi", "Vui lòng nhập tên hiển thị!");
+            return Toast.show("Please enter display name!", { duration: Toast.durations.SHORT });
         }
 
         setIsSubmitting(true);
@@ -77,13 +78,13 @@ export default function EditProfileScreen() {
             });
 
             console.log("=> Thành công:", responseData);
-            Alert.alert("Thành công", "Đã cập nhật hồ sơ!");
+            Toast.show("Profile updated successfully!", { duration: Toast.durations.SHORT });
             router.replace('/(tabs)/profile' as any); // Chuyển thẳng về trang cá nhân
             
         } catch (error: any) {
             console.log("=> Lỗi cập nhật:", error);
             const errMsg = error.response?.data?.message || error.message || JSON.stringify(error);
-            Alert.alert("Lỗi", "Không thể cập nhật: " + errMsg);
+            Toast.show("Update failed: " + errMsg, { duration: Toast.durations.SHORT });
         } finally {
             setIsSubmitting(false);
         }
