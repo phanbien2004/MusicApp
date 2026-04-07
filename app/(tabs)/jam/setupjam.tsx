@@ -23,7 +23,7 @@ export default function SetupJamScreen() {
             // Backend trả về message thành công, sau đó bạn có thể lấy ID từ profile hoặc API list jam
             const session = resolveJamSession(res);
 
-            if (!session) {
+            if (!session?.sessionId) {
                 throw new Error('Missing jam session id in create response');
             }
 
@@ -34,10 +34,7 @@ export default function SetupJamScreen() {
                 isHost: true,
             });
 
-            router.replace({
-                pathname: '/(tabs)/jam/jamroom',
-                params: { jamId: String(session.sessionId) },
-            } as any);
+            router.navigate(`/jam/jamroom?jamId=${session.sessionId}` as any);
         } catch {
             Alert.alert("Error", "Could not create Jam session.");
         } finally {

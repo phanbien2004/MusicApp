@@ -21,6 +21,7 @@ export default function JoinJamScreen() {
             setLoading(true);
             // Giả sử mã code bạn nhập là ID session (theo logic join của bạn)
             const inputValue = code.trim();
+            let joinedJamId: number | undefined;
 
             if (joinMode === 'id') {
                 const jamSessionId = Number(inputValue);
@@ -36,6 +37,8 @@ export default function JoinJamScreen() {
                     ...session,
                     isHost: false,
                 });
+
+                joinedJamId = session.sessionId;
             } else {
                 const res = await joinJamSessionByCodeAPI(inputValue);
                 const session = resolveJamSession(res) ?? { sessionCode: inputValue };
@@ -45,9 +48,13 @@ export default function JoinJamScreen() {
                     sessionCode: session.sessionCode ?? inputValue,
                     isHost: false,
                 });
+
+                joinedJamId = session.sessionId;
             }
 
-            router.replace('/(tabs)/jam/jamroom' as any);
+            router.navigate(joinedJamId
+                ? `/jam/jamroom?jamId=${joinedJamId}`
+                : '/jam/jamroom' as any);
         } catch {
             Alert.alert("Oops!", "Could not join this Jam room.");
         } finally {

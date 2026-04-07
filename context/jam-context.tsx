@@ -74,7 +74,6 @@ export function JamProvider({ children }: { children: React.ReactNode }) {
 
             if (previousState === 'active' && nextState === 'background' && activeSessionRef.current?.sessionId) {
                 try {
-                    setActiveSessionState(null);
                     await AsyncStorage.removeItem(ACTIVE_JAM_STORAGE_KEY);
                 } catch (error) {
                     console.log('JamProvider clear on app exit failed:', error);
