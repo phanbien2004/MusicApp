@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { jwtDecode } from 'jwt-decode';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { jwtDecode } from 'jwt-decode';
 import React, { useState } from 'react';
 import {
     ActivityIndicator,
@@ -163,7 +164,7 @@ export default function LoginScreen() {
 
                     {/* ─── SIGN UP LINK ─── */}
                     <View style={styles.signupRow}>
-                        <Text style={styles.signupHint}>DON'T HAVE AN ACCOUNT? </Text>
+                        <Text style={styles.signupHint}>DON&apos;T HAVE AN ACCOUNT? </Text>
                         <TouchableOpacity onPress={() => router.push('/signup')}>
                             <Text style={styles.signupLink}>SIGN UP</Text>
                         </TouchableOpacity>

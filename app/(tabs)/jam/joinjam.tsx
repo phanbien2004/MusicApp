@@ -1,78 +1,100 @@
 import { Colors } from '@/constants/theme';
+import { useJam } from '@/context/jam-context';
+import { joinJamSessionByCodeAPI, joinJamSessionByIdAPI, resolveJamSession } from '@/services/jamService';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import {
-    Platform,
-    SafeAreaView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from 'react-native';
+import { Alert, Platform, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+
+type JoinMode = 'id' | 'code';
 
 export default function JoinJamScreen() {
     const router = useRouter();
+    const { setActiveSession } = useJam();
+    const [joinMode, setJoinMode] = useState<JoinMode>('id');
     const [code, setCode] = useState('');
-    const [isFocused, setIsFocused] = useState(false);
+    const [loading, setLoading] = useState(false);
+
+    const handleJoin = async () => {
+        if (!code.trim()) return;
+        try {
+            setLoading(true);
+            // Giả sử mã code bạn nhập là ID session (theo logic join của bạn)
+            const inputValue = code.trim();
+
+            if (joinMode === 'id') {
+                const jamSessionId = Number(inputValue);
+
+                if (!Number.isFinite(jamSessionId) || jamSessionId <= 0) {
+                    throw new Error('Invalid jam room id');
+                }
+
+                const res = await joinJamSessionByIdAPI(jamSessionId);
+                const session = resolveJamSession(res, jamSessionId) ?? { sessionId: jamSessionId };
+
+                await setActiveSession({
+                    ...session,
+                    isHost: false,
+                });
+            } else {
+                const res = await joinJamSessionByCodeAPI(inputValue);
+                const session = resolveJamSession(res) ?? { sessionCode: inputValue };
+
+                await setActiveSession({
+                    ...session,
+                    sessionCode: session.sessionCode ?? inputValue,
+                    isHost: false,
+                });
+            }
+
+            router.replace('/(tabs)/jam/jamroom' as any);
+        } catch {
+            Alert.alert("Oops!", "Could not join this Jam room.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <StatusBar barStyle="light-content" backgroundColor="#000" />
-
-            {/* ─── LIVE CENTER HEADER ─── */}
-            <View style={styles.headerCard}>
-                <View style={styles.liveBadge}>
-                    <Text style={styles.liveBadgeText}>LIVE CENTER</Text>
-                </View>
-                <Text style={styles.lobbyTitle}>JAM LOBBY</Text>
-                <Text style={styles.lobbySubtitle}>Experience music together, in real-time.</Text>
-            </View>
-
-            {/* ─── JOIN CARD ─── */}
             <View style={styles.container}>
                 <View style={styles.card}>
-
-                    {/* Code input */}
+                    <View style={styles.modeRow}>
+                        <TouchableOpacity
+                            style={[styles.modeChip, joinMode === 'id' && styles.modeChipActive]}
+                            onPress={() => setJoinMode('id')}
+                        >
+                            <Text style={[styles.modeChipText, joinMode === 'id' && styles.modeChipTextActive]}>Room ID</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.modeChip, joinMode === 'code' && styles.modeChipActive]}
+                            onPress={() => setJoinMode('code')}
+                        >
+                            <Text style={[styles.modeChipText, joinMode === 'code' && styles.modeChipTextActive]}>Invite Code</Text>
+                        </TouchableOpacity>
+                    </View>
                     <TextInput
-                        style={[styles.codeInput, isFocused && styles.codeInputFocused]}
-                        placeholder="Enter code ..."
+                        style={styles.codeInput}
+                        placeholder={joinMode === 'id' ? 'Enter room ID...' : 'Enter invite code...'}
                         placeholderTextColor={Colors.gray}
                         value={code}
                         onChangeText={setCode}
-                        onFocus={() => setIsFocused(true)}
-                        onBlur={() => setIsFocused(false)}
+                        keyboardType={joinMode === 'id' ? 'numeric' : 'default'}
                         autoCapitalize="characters"
                         textAlign="center"
                     />
-
-                    {/* Join button */}
-                    <TouchableOpacity style={styles.joinBtnWrapper} activeOpacity={0.85}
-                        onPress={() => router.push('/(tabs)/jam/jamroom' as any)}>
-                        <LinearGradient
-                            colors={[Colors.teal, '#1AAF74']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={styles.joinBtn}>
-                            <Text style={styles.joinBtnText}>Join</Text>
+                    <TouchableOpacity style={styles.joinBtnWrapper} onPress={handleJoin} disabled={loading}>
+                        <LinearGradient colors={[Colors.teal, '#1AAF74']} style={styles.joinBtn}>
+                            <Text style={styles.joinBtnText}>{loading ? 'Joining...' : 'Join'}</Text>
                         </LinearGradient>
                     </TouchableOpacity>
-
-                    {/* Cancel button */}
-                    <TouchableOpacity
-                        style={styles.cancelBtn}
-                        onPress={() => router.push('/(tabs)/jam' as any)}>
-                        <Text style={styles.cancelText}>Cancel</Text>
-                    </TouchableOpacity>
-
+                    <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
                 </View>
             </View>
         </SafeAreaView>
     );
 }
-
+// ... Giữ styles cũ ...
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
@@ -130,6 +152,32 @@ const styles = StyleSheet.create({
         borderColor: '#1E1E1E',
         padding: 24,
         gap: 14,
+    },
+    modeRow: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    modeChip: {
+        flex: 1,
+        height: 42,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#2A2A2A',
+        backgroundColor: '#111',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    modeChipActive: {
+        borderColor: Colors.teal,
+        backgroundColor: '#0F2D24',
+    },
+    modeChipText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: Colors.gray,
+    },
+    modeChipTextActive: {
+        color: Colors.white,
     },
 
     // Code input

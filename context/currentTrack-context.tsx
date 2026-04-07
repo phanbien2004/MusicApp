@@ -3,7 +3,8 @@ import { AudioPlayer, useAudioPlayer } from 'expo-audio';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 export interface CurrentTrack extends TrackContentType {
-    trackURL: string | any;
+    id: number;
+    trackUrl: string | any;
 }
 
 interface CurrentTrackContextType {
@@ -16,16 +17,17 @@ const CurrentTrackContext = createContext<CurrentTrackContextType | undefined>(u
 
 export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }) => {
     const [currentTrack, setCurrentTrack] = useState<CurrentTrack | null>(null);
-    const player = useAudioPlayer(currentTrack?.trackURL || null);
+    const player = useAudioPlayer(currentTrack?.trackUrl || null);
 
     useEffect(() => {
-        if (currentTrack?.trackURL) {
+        if (currentTrack?.trackUrl) {
+            console.log("CurrentTrackProvider - New track URL:", currentTrack.trackUrl);
             const playTimeout = setTimeout(() => {
                 player.play();
             }, 150); 
             return () => clearTimeout(playTimeout);
         }
-    }, [currentTrack?.trackURL]);
+    }, [currentTrack?.trackUrl]);
 
     const handleSetTrack = (track: CurrentTrack) => {
         setCurrentTrack(track);

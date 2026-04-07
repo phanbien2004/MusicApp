@@ -13,6 +13,13 @@ export default function AddListScreen() {
     const router = useRouter();
     const [playlistName, setPlaylistName] = React.useState("");
 
+    const handleTouchCreate = async () => {
+        const res = await createPlayListAPI(playlistName);
+        if(res) {
+            router.back();
+        }
+    }
+
     return (
         <View style={styles.container}>
             {/* Đưa icon vào TouchableOpacity để có thể bấm được */}
@@ -32,13 +39,10 @@ export default function AddListScreen() {
                 value={playlistName}
                 onChangeText={setPlaylistName}
                 autoFocus={true} // Tự động hiện bàn phím khi vào màn hình
+                onChangeText={(text) => setPlaylistName(text)}
             />
 
-            <TouchableOpacity style={styles.createBtn} 
-                onPress={() => {
-                    handleTouchCreatePlaylist(playlistName);
-                    router.back();
-                }}>
+            <TouchableOpacity style={styles.createBtn} onPress={handleTouchCreate}>
                 <Text style={styles.createBtnText}>Create</Text>
             </TouchableOpacity>
         </View>

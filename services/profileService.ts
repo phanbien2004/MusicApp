@@ -7,7 +7,7 @@ interface PlayList {
     thumbnailUrl: string;
 }
 
-export interface ProfileResponse {
+export interface ProfileResponse { 
     id: number;
     displayName: string;
     avatarUrl: string;
