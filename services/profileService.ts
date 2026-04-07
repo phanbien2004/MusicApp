@@ -16,7 +16,7 @@ export interface ProfileResponse {
     playlistCount: number,
     playlists: PlayList[],
     subscriptionType?: 'FREE' | 'PREMIUM',
-    artistStatus?: 'NONE' | 'PENDING' | 'VERIFIED' | 'REJECTED',
+    artistProfileStatus?: 'NONE' | 'PENDING' | 'VERIFIED' | 'REJECTED',
     // — Thông tin Nghệ sĩ (Backend cần trả về thêm các trường này)
     artistStageName?: string,
     artistBio?: string,

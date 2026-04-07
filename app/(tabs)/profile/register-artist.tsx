@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { getPresignedUploadUrl, uploadFileToMinIO } from "@/services/storageService";
 import { createArtistProfileAPI, updateArtistProfileAPI } from "@/services/artistService";
+import Toast from 'react-native-root-toast';
 
 const { width } = Dimensions.get('window');
 
@@ -142,11 +143,11 @@ export default function RegisterArtistScreen() {
 
     // Hàm xử lý Submit — tự động chọn create hay update
     const handleSubmit = async () => {
-        if (!agreed) return Alert.alert("Cảnh báo", "Bạn cần đồng ý với điều khoản!");
-        if (!stageName) return Alert.alert("Cảnh báo", "Vui lòng nhập tên nghệ danh!");
+        if (!agreed) return Toast.show("You must agree to the terms!", { duration: Toast.durations.SHORT });
+        if (!stageName) return Toast.show("Please enter stage name!", { duration: Toast.durations.SHORT });
         // Khi update: không bắt buộc chọn ảnh mới (có thể giữ ảnh cũ)
         if (!isUpdateMode && (!avatarFile || !coverFile)) {
-            return Alert.alert("Cảnh báo", "Vui lòng chọn đủ cả 2 ảnh!");
+            return Toast.show("Please select both images!", { duration: Toast.durations.SHORT });
         }
         
         setIsSubmitting(true);
@@ -191,7 +192,7 @@ export default function RegisterArtistScreen() {
                 });
             }
 
-            Alert.alert("Success!", isUpdateMode ? "Your profile has been updated." : "Your artist registration has been submitted.");
+            Toast.show(isUpdateMode ? "Your profile has been updated." : "Your artist registration has been submitted.", { duration: Toast.durations.SHORT });
             
             // Go back to profile
             if (router.canGoBack()) {
@@ -202,7 +203,7 @@ export default function RegisterArtistScreen() {
         } catch (error: any) {
             console.log("=> Lỗi:", error);
             const errMsg = error.response?.data?.message || error.message || JSON.stringify(error);
-            Alert.alert("Lỗi", errMsg);
+            Toast.show("Error: " + errMsg, { duration: Toast.durations.SHORT });
         } finally {
             setIsSubmitting(false);
         }
