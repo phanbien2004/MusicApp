@@ -14,7 +14,7 @@ export interface TrackContentType {
     thumbnailUrl: string,
     duration: number,
     contributors: TrackContributorType[],
-    // trackUrl: string
+    trackUrl?: string,
 }
 
 export interface TrackContributorType {

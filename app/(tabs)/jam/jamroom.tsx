@@ -1,7 +1,8 @@
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
-import { useCurrentTrack } from '@/context/currentTrack-context';
+import { type CurrentTrack, useCurrentTrack } from '@/context/currentTrack-context';
 import { useJam } from '@/context/jam-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
     createStompClient,
     deleteJamSessionAPI,
@@ -9,10 +10,11 @@ import {
     leaveJamSessionAPI,
     updateJamSessionAPI,
 } from '@/services/jamService';
+import { savePlayerStateAPI } from '@/services/playerStateService';
 import { MemberContentType, searchAPI } from '@/services/searchService';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -59,6 +61,62 @@ type JamNotificationItem = {
     hasCheck: boolean;
     time: string;
 };
+
+const parseStoredMemberId = (value: string | null) => {
+    if (!value) {
+        return null;
+    }
+
+    try {
+        const parsedValue = JSON.parse(value);
+        const normalizedValue = typeof parsedValue === 'number' ? parsedValue : Number(parsedValue);
+
+        return Number.isFinite(normalizedValue) && normalizedValue > 0 ? normalizedValue : null;
+    } catch {
+        const normalizedValue = Number(value);
+        return Number.isFinite(normalizedValue) && normalizedValue > 0 ? normalizedValue : null;
+    }
+};
+
+const normalizeSeekTime = (value: unknown) => {
+    const normalizedValue = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(normalizedValue) && normalizedValue >= 0 ? normalizedValue : null;
+};
+
+const normalizeJamTrack = (value: unknown): CurrentTrack | null => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return null;
+    }
+
+    const source = value as Record<string, unknown>;
+    const normalizedId = typeof source.id === 'number' ? source.id : Number(source.id);
+    const trackUrl = typeof source.trackUrl === 'string' ? source.trackUrl.trim() : '';
+
+    if (!Number.isFinite(normalizedId) || normalizedId <= 0 || !trackUrl) {
+        return null;
+    }
+
+    const normalizedDuration = typeof source.duration === 'number' ? source.duration : Number(source.duration);
+    const contributors = Array.isArray(source.contributors)
+        ? source.contributors
+            .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))
+            .map((item) => ({
+                id: typeof item.id === 'number' ? item.id : Number(item.id) || 0,
+                name: typeof item.name === 'string' ? item.name : '',
+            }))
+        : [];
+
+    return {
+        id: normalizedId,
+        title: typeof source.title === 'string' ? source.title : '',
+        thumbnailUrl: typeof source.thumbnailUrl === 'string' ? source.thumbnailUrl : '',
+        duration: Number.isFinite(normalizedDuration) && normalizedDuration >= 0 ? normalizedDuration : 0,
+        contributors,
+        trackUrl,
+    };
+};
+
+const waitForTrackSync = (delayMs = 250) => new Promise((resolve) => setTimeout(resolve, delayMs));
 
 // --- CUSTOM HOOK CHO BOTTOM SHEET (Giữ nguyên) ---
 function useBottomSheet(onClose: () => void) {
@@ -108,7 +166,7 @@ export default function JamRoomScreen() {
     const router = useRouter();
     const { accessToken } = useAuth();
     const { activeSession, clearActiveSession, isHydrated, setActiveSession } = useJam();
-    const { currentTrack, player } = useCurrentTrack()!;
+    const { currentTrack, player, setCurrentTrack } = useCurrentTrack()!;
     const isHost = Boolean(activeSession?.isHost);
     
     // UI States
@@ -128,16 +186,65 @@ export default function JamRoomScreen() {
     // WebSocket & Player Refs
     const stompClientRef = useRef<any>(null);
     const playerRef = useRef(player);
+    const currentTrackRef = useRef(currentTrack);
+    const memberIdRef = useRef<number | null>(null);
 
     const { slideAnim, overlayAnim, dragY, panResponder, open, close } = useBottomSheet(() => setActiveSheet('none'));
     const activeSessionId = activeSession?.sessionId;
     const activeSessionCode = activeSession?.sessionCode;
     const activeSessionKey = activeSessionId ?? activeSessionCode;
 
+    const persistPlayerState = useCallback(async (seekTimeOverride?: number) => {
+        const memberId = memberIdRef.current;
+        const trackId = currentTrackRef.current?.id;
+
+        if (!activeSessionKey || !memberId || !trackId) {
+            return;
+        }
+
+        try {
+            await savePlayerStateAPI({
+                currentSeekPosition: Math.max(0, Math.floor(seekTimeOverride ?? playerRef.current.currentTime ?? 0)),
+                trackId,
+                playlistId: 0,
+                albumId: 0,
+                memberId,
+            });
+        } catch (error) {
+            console.log('JamRoom save player state failed:', error);
+        }
+    }, [activeSessionKey]);
+
     // Cập nhật playerRef để dùng trong WebSocket callback
     useEffect(() => {
         playerRef.current = player;
     }, [player]);
+
+    useEffect(() => {
+        currentTrackRef.current = currentTrack;
+    }, [currentTrack]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const hydrateMemberId = async () => {
+            try {
+                const storedMemberId = await AsyncStorage.getItem('userId');
+
+                if (isMounted) {
+                    memberIdRef.current = parseStoredMemberId(storedMemberId);
+                }
+            } catch (error) {
+                console.log('JamRoom member id hydrate failed:', error);
+            }
+        };
+
+        hydrateMemberId();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     useEffect(() => {
         if (activeSession) {
@@ -148,7 +255,7 @@ export default function JamRoomScreen() {
 
     useEffect(() => {
         if (isHydrated && !activeSessionKey) {
-            router.replace('/(tabs)/jam' as any);
+            router.navigate('/jam' as any);
         }
     }, [activeSessionKey, isHydrated, router]);
 
@@ -163,8 +270,32 @@ export default function JamRoomScreen() {
             client.subscribe(`/jam/notification${activeSessionKey}`, (message) => {
                 const data = JSON.parse(message.body);
                 if (data.type === 'JAM_INTERACTION') {
-                    if (data.interactionType === 'PLAY') playerRef.current.play();
-                    else if (data.interactionType === 'PAUSE') playerRef.current.pause();
+                    const syncedTrack = normalizeJamTrack(data.track);
+                    const syncedSeekTime = normalizeSeekTime(data.seekTime);
+
+                    const syncPlayback = async () => {
+                        if (syncedTrack && currentTrackRef.current?.id !== syncedTrack.id) {
+                            setCurrentTrack(syncedTrack);
+                            currentTrackRef.current = syncedTrack;
+                            await waitForTrackSync();
+                        }
+
+                        if (syncedSeekTime !== null) {
+                            try {
+                                await playerRef.current.seekTo(syncedSeekTime);
+                            } catch (error) {
+                                console.log('JamRoom seek sync failed:', error);
+                            }
+                        }
+
+                        if (data.interactionType === 'PLAY') {
+                            playerRef.current.play();
+                        } else if (data.interactionType === 'PAUSE') {
+                            playerRef.current.pause();
+                        }
+                    };
+
+                    void syncPlayback();
                 }
 
                 setActivityItems(prev => [{
@@ -182,7 +313,7 @@ export default function JamRoomScreen() {
         stompClientRef.current = client;
 
         return () => { if (stompClientRef.current) stompClientRef.current.deactivate(); };
-    }, [accessToken, activeSessionKey]);
+    }, [accessToken, activeSessionKey, setCurrentTrack]);
 
     useEffect(() => {
         if (activeSheet !== 'invite' || !inviteQuery.trim()) {
@@ -223,14 +354,48 @@ export default function JamRoomScreen() {
     }, [activeSheet, inviteQuery]);
 
     // --- GỬI LỆNH ĐIỀU KHIỂN ---
+    useEffect(() => {
+        if (!activeSessionKey || !currentTrack?.id) {
+            return;
+        }
+
+        void persistPlayerState();
+    }, [activeSessionKey, currentTrack?.id, persistPlayerState]);
+
+    useEffect(() => {
+        if (!activeSessionKey || !currentTrack?.id || !player.playing) {
+            return;
+        }
+
+        const intervalId = setInterval(() => {
+            void persistPlayerState();
+        }, 5000);
+
+        return () => {
+            clearInterval(intervalId);
+        };
+    }, [activeSessionKey, currentTrack?.id, player.playing, persistPlayerState]);
+
     const sendControl = (type: 'PLAY' | 'PAUSE' | 'SKIP' | 'PREVIOUS') => {
+        const seekTime = player.currentTime;
+
+        void persistPlayerState(seekTime);
+
         if (stompClientRef.current?.connected && activeSessionKey) {
             stompClientRef.current.publish({
                 destination: `/app/jam.control/${activeSessionKey}`,
                 body: JSON.stringify({
                     interactionType: type,
                     trackId: currentTrack?.id,
-                    seekTime: player.currentTime
+                    seekTime,
+                    track: currentTrack ? {
+                        id: currentTrack.id,
+                        title: currentTrack.title,
+                        thumbnailUrl: currentTrack.thumbnailUrl,
+                        duration: currentTrack.duration,
+                        contributors: currentTrack.contributors,
+                        trackUrl: typeof currentTrack.trackUrl === 'string' ? currentTrack.trackUrl : '',
+                    } : null,
                 })
             });
         }
@@ -318,7 +483,7 @@ export default function JamRoomScreen() {
 
             await clearActiveSession();
             close(() => setActiveSheet('none'));
-            router.replace('/(tabs)/jam' as any);
+            router.navigate('/jam' as any);
         } catch {
             Alert.alert('Error', isHost ? 'Could not end this Jam.' : 'Could not leave this Jam.');
         } finally {
