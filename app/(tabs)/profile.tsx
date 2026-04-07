@@ -15,7 +15,7 @@ import {
     View,
 } from 'react-native';
 
-import { getMemberPlayListAPI, PlayList } from '@/services/listService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getProfileAPI, ProfileResponse } from '@/services/profileService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -140,7 +140,6 @@ export default function ProfileScreen() {
                         <Ionicons name="add" size={22} color={Colors.white} />
                     </TouchableOpacity>
                 </View>
-
                 <View style={styles.playlistsGrid}>
                     {playlists?.map(item => (
                         <TouchableOpacity 
@@ -160,7 +159,6 @@ export default function ProfileScreen() {
                         </TouchableOpacity>
                     ))}
                 </View>
-
             </ScrollView>
         </SafeAreaView>
     );

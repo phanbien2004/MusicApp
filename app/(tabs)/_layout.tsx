@@ -35,8 +35,10 @@ const HIDDEN_SCREENS = [
 function TabLayoutInner() {
     const insets = useSafeAreaInsets();
     const pathname = usePathname();
-    
-    // Kiểm tra xem có đang ở màn hình phụ cần ẩn MiniPlayer hay không
+    // Tất cả màn hình ẩn (href: null) — cần giữ tab cuối sáng
+    const HIDDEN_SCREENS = ['player/currentTrack', 'jam/setupjam', 'jam/joinjam', 'notifications', 
+    'jam/jamroom', 'jam/jamnotification', 'jam/jamsettings', 'profile/register-artist', 'profile/addlist', 'profile/edit-profile',
+    'profile/my-subscription', 'profile/account-settings'];
     const isHiddenScreen = HIDDEN_SCREENS.some(s => pathname.includes(s));
 
     // Lấy state lưu Tab cuối cùng hoạt động để giữ sáng icon

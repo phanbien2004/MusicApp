@@ -3,6 +3,7 @@ import { useAuth } from '@/context/auth-context';
 import { loginAPI } from '@/services/authService';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { jwtDecode } from 'jwt-decode';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { jwtDecode } from 'jwt-decode';

@@ -5,6 +5,10 @@ import { useRouter } from "expo-router"; // Thêm router để nút X có tác d
 import React from "react";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
+const handleTouchCreatePlaylist = async (playlistName: string) => {
+    const res = await createPlayListAPI(playlistName);
+}
+
 export default function AddListScreen() {
     const router = useRouter();
     const [playlistName, setPlaylistName] = React.useState("");
@@ -32,6 +36,8 @@ export default function AddListScreen() {
                 style={styles.input}
                 placeholder="Enter playlist name"
                 placeholderTextColor="#888"
+                value={playlistName}
+                onChangeText={setPlaylistName}
                 autoFocus={true} // Tự động hiện bàn phím khi vào màn hình
                 onChangeText={(text) => setPlaylistName(text)}
             />

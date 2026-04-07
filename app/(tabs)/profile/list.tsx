@@ -191,6 +191,7 @@ export default function PlaylistDetailScreen() {
                 <TouchableOpacity style={styles.backBtn}><Ionicons name="share-social-outline" size={22} color="#FFF" /></TouchableOpacity>
             </View>
 
+            {/* --- LIST NỘI DUNG CHÍNH --- */}
             <Animated.FlatList
                 data={detail.tracks}
                 keyExtractor={(item) => item.id.toString()}
