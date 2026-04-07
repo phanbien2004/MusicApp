@@ -7,7 +7,7 @@ export interface SubmitDraftPayload {
     trackKey: string;
     thumbnailKey: string | null;
     duration: number;
-    featuredArtistIds: number[];
+    featuredArtistDTO: contributorDTO[];
 }
 
 export interface TagDTO {
@@ -38,7 +38,7 @@ export interface contributorDTO {
 
 export interface SubmitFinalizePayload {
     id: number;
-    contributors: number[];
+    contributors: contributorDTO[];
     tagIds: number[];
 }
 

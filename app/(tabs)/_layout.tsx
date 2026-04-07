@@ -1,5 +1,6 @@
 import MiniPlayer from '@/components/mini-player';
 import { Colors } from '@/constants/theme';
+import { JamProvider } from '@/context/jam-context';
 import { PlayerProvider, usePlayer } from '@/context/player-context';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomTabBar } from '@react-navigation/bottom-tabs';
@@ -27,7 +28,7 @@ const HIDDEN_SCREENS = [
     'profile/my-subscription',
     'profile/account-settings',
     'profile/artist-portal',
-    'profile/list',
+    // 'profile/list',
     'profile/upload-track'
 ];
 
@@ -154,7 +155,9 @@ export default function TabLayout() {
     return (
         <PlayerProvider>
             <CurrentTrackProvider>
-                <TabLayoutInner />
+                <JamProvider>
+                    <TabLayoutInner />
+                </JamProvider>
             </CurrentTrackProvider>
         </PlayerProvider>
     );

@@ -1,20 +1,19 @@
 import { Colors } from '@/constants/theme';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import {
+    Dimensions,
+    Platform,
     SafeAreaView,
     ScrollView,
     StatusBar,
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
-    Platform,
-    Image,
-    Dimensions
+    View
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
@@ -43,7 +42,7 @@ export default function ArtistPortalScreen() {
                 <View style={styles.profileTop}>
                     <View style={styles.avatarPlaceholder} />
                     <View style={styles.profileInfo}>
-                        <Text style={styles.profileName}>Bien - MTP</Text>
+                        <Text style={styles.profileName}>Bien  MTP</Text>
                         <Text style={styles.profileHandle}>@bienne</Text>
                     </View>
                 </View>

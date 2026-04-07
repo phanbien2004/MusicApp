@@ -1,4 +1,5 @@
 import { Colors } from "@/constants/theme";
+import { createPlayListAPI } from "@/services/listService";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router"; // Thêm router để nút X có tác dụng
 import React from "react";
@@ -6,6 +7,14 @@ import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-nativ
 
 export default function AddListScreen() {
     const router = useRouter();
+    const [playlistName, setPlaylistName] = React.useState("");
+
+    const handleTouchCreate = async () => {
+        const res = await createPlayListAPI(playlistName);
+        if(res) {
+            router.back();
+        }
+    }
 
     return (
         <View style={styles.container}>
@@ -24,9 +33,10 @@ export default function AddListScreen() {
                 placeholder="Enter playlist name"
                 placeholderTextColor="#888"
                 autoFocus={true} // Tự động hiện bàn phím khi vào màn hình
+                onChangeText={(text) => setPlaylistName(text)}
             />
 
-            <TouchableOpacity style={styles.createBtn} onPress={() => router.back()}>
+            <TouchableOpacity style={styles.createBtn} onPress={handleTouchCreate}>
                 <Text style={styles.createBtnText}>Create</Text>
             </TouchableOpacity>
         </View>

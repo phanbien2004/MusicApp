@@ -14,61 +14,29 @@ export const getPresignedUploadUrl = async (fileName: string, fileType: string, 
     return res.data;
 };
 
-// 2. Upload file trực tiếp lên MinIO qua XMLHttpRequest (fetch bị treo với binary blob trên RN)
-export const uploadFileToMinIO = async (fileUri: string, fileType: string, presignedUrl: string): Promise<boolean> => {
-    // Thay toàn bộ host của presigned URL bằng host từ BASE_URL
+// 2. Upload file trực tiếp lên MinIO
+export const uploadFileToMinIO = async (fileUri: string, fileType: string, presignedUrl: string) => {
+    console.log("Put File To MinIO");
+    
+    // Nếu backend chạy Minio ở localhost:9000, thay localhost bằng hostname chung để app thật gọi được
     let finalUploadUrl = presignedUrl;
     try {
-        const parsedPresigned = new URL(presignedUrl);
-        const parsedBase = new URL(BASE_URL);
-        parsedPresigned.hostname = parsedBase.hostname;
-        finalUploadUrl = parsedPresigned.toString();
+        const baseIp = new URL(BASE_URL).hostname;
+        finalUploadUrl = finalUploadUrl.replace('localhost', baseIp);
     } catch {}
 
-    console.log("Put File To MinIO - Original URL:", presignedUrl);
-    console.log("Put File To MinIO - Final URL:   ", finalUploadUrl);
-
-    // Đọc file thành blob
-    const fileResponse = await fetch(fileUri);
-    const blob = await fileResponse.blob();
-
-    console.log("Blob size:", blob.size, "type:", blob.type);
-
-    // Dùng XMLHttpRequest thay fetch để tránh bị treo khi PUT binary data trên React Native
-    return new Promise<boolean>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('PUT', finalUploadUrl, true);
-        xhr.setRequestHeader('Content-Type', fileType);
-        // MinIO cần Content-Length chính xác, không thì sẽ đóng kết nối giữa chừng
-        xhr.setRequestHeader('Content-Length', String(blob.size));
-
-        xhr.timeout = 120000; // 2 phút timeout
-
-        xhr.onload = () => {
-            console.log("MinIO XHR status:", xhr.status);
-            if (xhr.status >= 200 && xhr.status < 300) {
-                resolve(true);
-            } else {
-                reject(new Error("Lỗi khi upload MinIO: Status " + xhr.status));
-            }
-        };
-
-        xhr.onerror = (e) => {
-            console.error("MinIO XHR error:", e);
-            reject(new Error("Network error khi upload MinIO"));
-        };
-
-        xhr.ontimeout = () => {
-            reject(new Error("Upload MinIO timeout sau 2 phút"));
-        };
-
-        xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-                const percent = Math.round((e.loaded / e.total) * 100);
-                console.log(`Upload progress: ${percent}%`);
-            }
-        };
-
-        xhr.send(blob);
+    const response = await fetch(fileUri);
+    const blob = await response.blob();
+    const uploadRes = await fetch(presignedUrl, {
+        headers: {
+            "Content-Type": fileType,
+        },
+        method: "PUT",
+        body: blob
     });
+
+    if (uploadRes.status < 200 || uploadRes.status >= 300) {
+        throw new Error("Lỗi khi upload MinIO: Status " + uploadRes.status);
+    }
+    return true;
 };

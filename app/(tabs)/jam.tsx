@@ -1,8 +1,10 @@
 import { Colors } from '@/constants/theme';
+import { useJam } from '@/context/jam-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
+    ActivityIndicator,
     Platform,
     SafeAreaView,
     StatusBar,
@@ -14,6 +16,28 @@ import {
 
 export default function JamScreen() {
     const router = useRouter();
+    const { activeSession, isHydrated } = useJam();
+    const activeJamId = activeSession?.sessionId;
+
+    useEffect(() => {
+        if (isHydrated && activeJamId) {
+            router.replace({
+                pathname: '/(tabs)/jam/jamroom',
+                params: { jamId: String(activeJamId) },
+            } as any);
+        }
+    }, [activeJamId, isHydrated, router]);
+
+    if (!isHydrated || activeJamId) {
+        return (
+            <SafeAreaView style={styles.safeArea}>
+                <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator color={Colors.teal} size="large" />
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -58,7 +82,7 @@ export default function JamScreen() {
                     <View style={styles.cardText}>
                         <Text style={styles.cardTitle}>Join Jam</Text>
                         <Text style={styles.cardDesc}>
-                            Jump into an active stream and see what's trending
+                            Jump into an active stream and see what is trending
                         </Text>
                     </View>
                 </TouchableOpacity>
@@ -115,6 +139,11 @@ const styles = StyleSheet.create({
     cardsContainer: {
         paddingHorizontal: 16,
         gap: 14,
+    },
+    loadingContainer: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     card: {
         flexDirection: 'row',
