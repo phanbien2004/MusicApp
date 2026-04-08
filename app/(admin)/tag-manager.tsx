@@ -1,8 +1,14 @@
+import { Colors } from '@/constants/theme';
+import { createTagAPI, deleteTagAPI, getTagByIdAPI, updateTagAPI } from '@/services/admin/adminService';
+import { getAllTagsAPI, TagDTO } from '@/services/trackService';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     KeyboardAvoidingView,
+    Modal,
     Platform,
     ScrollView,
     StatusBar,
@@ -10,16 +16,10 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View,
-    ActivityIndicator,
-    Alert,
-    Modal
+    View
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getAllTagsAPI, TagDTO } from '@/services/trackService';
-import { createTagAPI, deleteTagAPI, getTagByIdAPI, updateTagAPI } from '@/services/adminService';
-import { Colors } from '@/constants/theme';
 import Toast from 'react-native-root-toast';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TagManager() {
     const router = useRouter();

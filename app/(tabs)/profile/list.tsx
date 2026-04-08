@@ -14,7 +14,7 @@ import { getPresignedUploadUrl, uploadFileToMinIO } from '@/services/storageServ
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Thêm để lấy My ID
 import * as ImagePicker from 'expo-image-picker';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -103,7 +103,11 @@ export default function PlaylistDetailScreen() {
         }
     }, [id]);
 
-    useEffect(() => { loadDetail(); }, [loadDetail]);
+    useFocusEffect(
+        useCallback(() => {
+            loadDetail();
+        }, [loadDetail])
+    );
 
     // --- LOGIC XỬ LÝ COLLAB ---
     const handleManageCollab = (collab: any) => {
