@@ -15,9 +15,10 @@ import {
     View,
 } from 'react-native';
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getProfileAPI, ProfileResponse } from '@/services/profileService';
+import { PlayList } from '@/services/listService';
 import { getMySubscriptionAPI } from '@/services/paymentService';
+import { getProfileAPI, ProfileResponse } from '@/services/profileService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
@@ -28,6 +29,7 @@ export default function ProfileScreen() {
     const router = useRouter();
     const [profileData, setProfileData] = useState<ProfileResponse | null>(null);
     const [playlists, setPlaylists] = useState<PlayList[] | null>(null);
+    const [isPremium, setIsPremium] = useState(false);
 
     const fetchProfileData = useCallback(async () => {
         try {
