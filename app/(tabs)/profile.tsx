@@ -169,7 +169,7 @@ export default function ProfileScreen() {
                     </TouchableOpacity>
                 </View>
                 <View style={styles.playlistsGrid}>
-                    {playlists?.map(item => (
+                    {profileData?.playlists?.map(item => (
                         <TouchableOpacity 
                             key={item.id} 
                             style={styles.playlistCard} 

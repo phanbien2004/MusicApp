@@ -5,7 +5,6 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 import { jwtDecode } from 'jwt-decode';
 
-import { jwtDecode } from 'jwt-decode';
 
 // Guard: redirect dựa theo trạng thái auth
 function AuthGuard() {
