@@ -1,8 +1,8 @@
 import { Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import React from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useState, useCallback } from 'react';
 import {
     Dimensions,
     Platform,
@@ -12,13 +12,35 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View
+    View,
+    Image
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getProfileAPI, ProfileResponse } from '@/services/profileService';
 
 const { width } = Dimensions.get('window');
 
 export default function ArtistPortalScreen() {
     const router = useRouter();
+    const [profileData, setProfileData] = useState<ProfileResponse | null>(null);
+
+    const fetchProfile = useCallback(async () => {
+        try {
+            const userId = await AsyncStorage.getItem('userId');
+            if (userId) {
+                const res = await getProfileAPI(userId);
+                setProfileData(res);
+            }
+        } catch (error) {
+            console.error("Lỗi khi lấy profile artist:", error);
+        }
+    }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchProfile();
+        }, [fetchProfile])
+    );
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -27,12 +49,15 @@ export default function ArtistPortalScreen() {
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 {/* Header Icons */}
                 <View style={styles.headerRow}>
+                    <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
+                        <Ionicons name="chevron-back" size={22} color={Colors.white} />
+                    </TouchableOpacity>
                     <View style={{ flex: 1 }} />
                     <View style={styles.headerIcons}>
                         <TouchableOpacity style={styles.iconBtn}>
                             <Ionicons name="share-social-outline" size={22} color={Colors.white} />
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.iconBtn}>
+                        <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/profile/account-settings' as any)}>
                             <Ionicons name="settings-outline" size={22} color={Colors.white} />
                         </TouchableOpacity>
                     </View>
@@ -40,31 +65,37 @@ export default function ArtistPortalScreen() {
 
                 {/* Profile Top */}
                 <View style={styles.profileTop}>
-                    <View style={styles.avatarPlaceholder} />
+                    {profileData?.artistAvatarUrl || profileData?.avatarUrl ? (
+                         <Image source={{ uri: profileData?.artistAvatarUrl || profileData?.avatarUrl }} style={styles.avatarPlaceholder} />
+                    ) : (
+                         <View style={[styles.avatarPlaceholder, { alignItems: 'center', justifyContent: 'center'}]}>
+                              <Ionicons name="person" size={32} color="#555" />
+                         </View>
+                    )}
                     <View style={styles.profileInfo}>
-                        <Text style={styles.profileName}>Bien  MTP</Text>
-                        <Text style={styles.profileHandle}>@bienne</Text>
+                        <Text style={styles.profileName}>{profileData?.artistStageName || profileData?.displayName || 'Unknown Artist'}</Text>
+                        <Text style={styles.profileHandle}>@{(profileData?.artistStageName || profileData?.displayName || 'unknown').toLowerCase().replace(/\s/g, '')}</Text>
                     </View>
                 </View>
 
                 {/* Stats */}
                 <View style={styles.statsRow}>
                     <View style={styles.statBox}>
-                        <Text style={styles.statNumber}>12k</Text>
+                        <Text style={styles.statNumber}>0</Text>
                         <Text style={styles.statLabel}>FANS</Text>
                     </View>
                     <View style={styles.statBox}>
-                        <Text style={styles.statNumber}>20</Text>
+                        <Text style={styles.statNumber}>{profileData?.friendCount || 0}</Text>
                         <Text style={styles.statLabel}>FRIENDS</Text>
                     </View>
                     <View style={styles.statBox}>
-                        <Text style={styles.statNumber}>42</Text>
+                        <Text style={styles.statNumber}>0</Text>
                         <Text style={styles.statLabel}>DROPS</Text>
                     </View>
                 </View>
 
                 {/* Upload Button */}
-                <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/(tabs)/profile/upload-track' as any)}>
+                <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/profile/upload-track' as any)}>
                     <LinearGradient
                         colors={['#A855F7', '#3B82F6', '#60A5FA']}
                         start={{ x: 0, y: 0 }}
@@ -83,15 +114,8 @@ export default function ArtistPortalScreen() {
                     <Text style={styles.sectionTitle}>My Drops</Text>
                 </View>
 
-                <View style={styles.dropsGrid}>
-                    <View style={styles.dropCard}>
-                        <View style={styles.dropThumb} />
-                        <Text style={styles.dropName}>Song 1</Text>
-                    </View>
-                    <View style={styles.dropCard}>
-                        <View style={styles.dropThumb} />
-                        <Text style={styles.dropName}>Song 2</Text>
-                    </View>
+                <View style={[styles.dropsGrid, { alignItems: 'center', justifyContent: 'center', marginTop: 40 }]}>
+                    <Text style={{ color: '#555' }}>Chưa có bài hát nào.</Text>
                 </View>
             </ScrollView>
         </SafeAreaView>
@@ -137,6 +161,8 @@ const styles = StyleSheet.create({
         height: 80,
         borderRadius: 16,
         backgroundColor: '#D9D9D9',
+        borderWidth: 1,
+        borderColor: '#333'
     },
     profileInfo: {
         gap: 4,
@@ -208,21 +234,5 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         paddingHorizontal: 24,
         gap: 16,
-    },
-    dropCard: {
-        flex: 1,
-        gap: 8,
-    },
-    dropThumb: {
-        width: '100%',
-        aspectRatio: 1,
-        borderRadius: 16,
-        backgroundColor: '#D9D9D9',
-    },
-    dropName: {
-        fontSize: 14,
-        fontWeight: '500',
-        color: Colors.white,
-        textAlign: 'center',
     },
 });

@@ -1,26 +1,79 @@
 import { Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { FlatList, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { FlatList, StatusBar, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Toast from 'react-native-root-toast';
+import apiClient from '@/api/apiClient';
 
-const MOCK_TRACKS = [
-    { id: '1', title: 'Track 01', artist: 'Athor ft Abc, Chicke', duration: '3:36', currentTime: '1:18', tags: ['Lo-fi', 'Chill'] },
-    { id: '2', title: 'Track 02', artist: 'Athor' },
-    { id: '3', title: 'Track 03', artist: 'Athor' },
-    { id: '4', title: 'Track 04', artist: 'Athor' },
-    { id: '5', title: 'Track 05', artist: 'Athor' },
-    { id: '6', title: 'Track 06', artist: 'Athor' },
-];
+interface TrackReviewItem {
+    trackId: number;
+    title: string;
+    duration: number;
+    trackUrl: string;
+    thumbnailUrl: string;
+    tags: { id: number; name: string }[];
+}
 
 export default function TrackReview() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const [playingId, setPlayingId] = useState<string | null>('1'); // Mặc định bài 1 đang mở rộng
+    const [playingId, setPlayingId] = useState<number | null>(null);
+    
+    const [tracks, setTracks] = useState<TrackReviewItem[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
 
-    const renderTrackItem = ({ item }: { item: typeof MOCK_TRACKS[0] }) => {
-        const isExpanded = playingId === item.id;
+    const fetchTracks = async (pageIndex = 1) => {
+        try {
+            setLoading(true);
+            const res = await apiClient.get('/api/v1/admin/getAllPendingTrack', { params: { index: pageIndex, size: 6 } });
+            if (res.data?.content) {
+                setTracks(res.data.content);
+                setTotalPages(res.data.totalPages || 1);
+                setTotalItems(res.data.totalElements || 0);
+            }
+        } catch (error) {
+            console.error("Failed to load tracks:", error);
+            Toast.show('Failed to load pending tracks.', { duration: Toast.durations.SHORT });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchTracks(page);
+    }, [page]);
+
+    const handleApprove = async (id: number) => {
+        try {
+            await apiClient.put(`/api/v1/admin/approveTrack/${id}`);
+            Toast.show('Track approved successfully!', { duration: Toast.durations.SHORT });
+            fetchTracks(page); // Reload sau khi duyệt
+        } catch (error) {
+            console.error("Approve track error:", error);
+            Toast.show('Failed to approve track.', { duration: Toast.durations.SHORT });
+        }
+    };
+
+    const handleReject = async (id: number) => {
+        // Tuỳ thuộc backend có endpoint reject không, tạm mock
+        Toast.show('Rejected track!', { duration: Toast.durations.SHORT });
+        // Implement tiếp API /rejectTrack nếu có
+    };
+
+    const formatDuration = (sec: number) => {
+        if (!sec) return '0:00';
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        return `${m}:${s < 10 ? '0' : ''}${s}`;
+    };
+
+    const renderTrackItem = ({ item }: { item: TrackReviewItem }) => {
+        const isExpanded = playingId === item.trackId;
 
         return (
             <View style={[styles.card, isExpanded && styles.cardActive]}>
@@ -28,7 +81,7 @@ export default function TrackReview() {
                     {/* Play Button */}
                     <TouchableOpacity 
                         style={[styles.playBtn, isExpanded && styles.playBtnActive]}
-                        onPress={() => setPlayingId(isExpanded ? null : item.id)}
+                        onPress={() => setPlayingId(isExpanded ? null : item.trackId)}
                     >
                         <Ionicons name={isExpanded ? "pause" : "play"} size={24} color={isExpanded ? Colors.teal : "#FFF"} />
                     </TouchableOpacity>
@@ -36,15 +89,15 @@ export default function TrackReview() {
                     {/* Info */}
                     <View style={styles.trackInfo}>
                         <Text style={styles.trackTitle}>{item.title}</Text>
-                        <Text style={styles.trackArtist} numberOfLines={1}>{item.artist}</Text>
+                        <Text style={styles.trackArtist} numberOfLines={1}>Duration: {formatDuration(item.duration)}</Text>
                     </View>
 
                     {/* Actions */}
                     <View style={styles.actionRow}>
-                        <TouchableOpacity style={styles.rejectBtn}>
+                        <TouchableOpacity style={styles.rejectBtn} onPress={() => handleReject(item.trackId)}>
                             <Ionicons name="close" size={20} color="#FF5555" />
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.approveBtn}>
+                        <TouchableOpacity style={styles.approveBtn} onPress={() => handleApprove(item.trackId)}>
                             <Ionicons name="checkmark" size={20} color={Colors.teal} />
                         </TouchableOpacity>
                     </View>
@@ -55,26 +108,33 @@ export default function TrackReview() {
                     <View style={styles.expandedContent}>
                         <View style={styles.tagRow}>
                             {item.tags?.map(tag => (
-                                <View key={tag} style={styles.tag}>
-                                    <Text style={styles.tagText}>{tag}</Text>
+                                <View key={tag.id} style={styles.tag}>
+                                    <Text style={styles.tagText}>{tag.name}</Text>
                                 </View>
                             ))}
                         </View>
 
-                        {/* Progress Bar */}
+                        {/* Progress Bar (Mock player UI) */}
                         <View style={styles.progressContainer}>
                             <View style={styles.progressBarBg}>
-                                <View style={[styles.progressFill, { width: '40%' }]} />
+                                <View style={[styles.progressFill, { width: '0%' }]} />
                             </View>
                             <View style={styles.timeRow}>
-                                <Text style={styles.timeText}>{item.currentTime}</Text>
-                                <Text style={styles.timeText}>{item.duration}</Text>
+                                <Text style={styles.timeText}>0:00</Text>
+                                <Text style={styles.timeText}>{formatDuration(item.duration)}</Text>
                             </View>
                         </View>
                     </View>
                 )}
             </View>
         );
+    };
+
+    const handleNext = () => {
+        if (page < totalPages) setPage(p => p + 1);
+    };
+    const handlePrev = () => {
+        if (page > 1) setPage(p => p - 1);
     };
 
     return (
@@ -88,24 +148,37 @@ export default function TrackReview() {
                 </TouchableOpacity>
                 <View>
                     <Text style={styles.headerTitle}>TRACK REVIEW</Text>
-                    <Text style={styles.headerSubtitle}>124 NEWS SUBMISSIONS</Text>
+                    <Text style={styles.headerSubtitle}>{totalItems} PENDING SUBMISSIONS</Text>
                 </View>
             </View>
 
             {/* ─── LIST ─── */}
-            <FlatList
-                data={MOCK_TRACKS}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.listContent}
-                renderItem={renderTrackItem}
-                showsVerticalScrollIndicator={false}
-            />
+            {loading ? (
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <ActivityIndicator color={Colors.teal} size="large" />
+                </View>
+            ) : (
+                <FlatList
+                    data={tracks}
+                    keyExtractor={(item) => String(item.trackId)}
+                    contentContainerStyle={styles.listContent}
+                    renderItem={renderTrackItem}
+                    showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={
+                        <Text style={{ color: '#888', textAlign: 'center', marginTop: 50 }}>No pending tracks</Text>
+                    }
+                />
+            )}
 
             {/* ─── PAGINATION ─── */}
             <View style={[styles.pagination, { marginBottom: insets.bottom + 10 }]}>
-                <TouchableOpacity><Ionicons name="chevron-back" size={20} color="#FFF" /></TouchableOpacity>
-                <Text style={styles.pageText}>1 / 21</Text>
-                <TouchableOpacity><Ionicons name="chevron-forward" size={20} color="#FFF" /></TouchableOpacity>
+                <TouchableOpacity onPress={handlePrev} disabled={page <= 1}>
+                    <Ionicons name="chevron-back" size={20} color={page <= 1 ? "#555" : "#FFF"} />
+                </TouchableOpacity>
+                <Text style={styles.pageText}>{page} / {totalPages}</Text>
+                <TouchableOpacity onPress={handleNext} disabled={page >= totalPages}>
+                    <Ionicons name="chevron-forward" size={20} color={page >= totalPages ? "#555" : "#FFF"} />
+                </TouchableOpacity>
             </View>
         </View>
     );
@@ -135,7 +208,7 @@ const styles = StyleSheet.create({
     approveBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#1A2A1A', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#2E4D2E' },
 
     expandedContent: { marginTop: 15, paddingHorizontal: 4 },
-    tagRow: { flexDirection: 'row', gap: 10, marginBottom: 15 },
+    tagRow: { flexDirection: 'row', gap: 10, marginBottom: 15, flexWrap: 'wrap' },
     tag: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: '#A855F7' },
     tagText: { color: '#A855F7', fontSize: 12, fontWeight: 'bold' },
     

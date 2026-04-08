@@ -35,8 +35,10 @@ const HIDDEN_SCREENS = [
 function TabLayoutInner() {
     const insets = useSafeAreaInsets();
     const pathname = usePathname();
-
-    // Check if currently on a sub-screen that should hide MiniPlayer
+    // Tất cả màn hình ẩn (href: null) — cần giữ tab cuối sáng
+    const HIDDEN_SCREENS = ['player/currentTrack', 'jam/setupjam', 'jam/joinjam', 'notifications', 
+    'jam/jamroom', 'jam/jamnotification', 'jam/jamsettings', 'profile/register-artist', 'profile/addlist', 'profile/edit-profile',
+    'profile/my-subscription', 'profile/account-settings'];
     const isHiddenScreen = HIDDEN_SCREENS.some(s => pathname.includes(s));
 
     // Track last active main tab to keep it highlighted when on sub-screens

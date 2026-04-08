@@ -222,7 +222,8 @@ export default function PlaylistDetailScreen() {
                 </TouchableOpacity>
             </View>
 
-            <FlatList
+            {/* --- LIST NỘI DUNG CHÍNH --- */}
+            <Animated.FlatList
                 data={detail.tracks}
                 keyExtractor={(item) => item.id.toString()}
                 contentContainerStyle={{ paddingHorizontal: 20, paddingTop: insets.top + 20, paddingBottom: 150 }}

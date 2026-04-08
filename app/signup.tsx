@@ -20,6 +20,9 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { jwtDecode } from 'jwt-decode';
+import Toast from 'react-native-root-toast';
 
 export default function SignupScreen() {
     const router = useRouter();
@@ -27,6 +30,7 @@ export default function SignupScreen() {
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [agreed, setAgreed] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -34,10 +38,11 @@ export default function SignupScreen() {
 
     const handleRegister = async () => {
         setError('');
-        if (!username.trim()) return setError('Vui lòng nhập username.');
-        if (!email.trim()) return setError('Vui lòng nhập email.');
-        if (!password.trim()) return setError('Vui lòng nhập password.');
-        if (!agreed) return setError('Bạn phải đồng ý với điều khoản.');
+        if (!username.trim()) return setError('Please enter username.');
+        if (!email.trim()) return setError('Please enter email.');
+        if (!password.trim()) return setError('Please enter password.');
+        if (password !== confirmPassword) return setError('Passwords do not match.');
+        if (!agreed) return setError('You must agree to the terms.');
 
         try {
             setLoading(true);
@@ -47,24 +52,39 @@ export default function SignupScreen() {
                 displayName: username.trim(),
             });
             if (res.message === "Account already exists!") {
-                setError("Email đã tồn tại!")
+                setError("Email already exists!")
             } else {
-                login(res.accessToken ?? undefined, res.refreshToken ?? undefined);
-                Alert.alert(
-                    '🎉 Đăng ký thành công!',
-                    `Chào mừng bạn đến với MusicApp, ${username.trim()}!\nTài khoản của bạn đã được tạo.`,
-                    [
-                        {
-                            text: 'Bắt đầu nghe nhạc',
-                            onPress: () => router.replace('/(tabs)/home'),
-                        },
-                    ],
-                    { cancelable: false }
-                );
+                if (res.accessToken && res.refreshToken) {
+                    await AsyncStorage.setItem('accessToken', res.accessToken);
+                    await AsyncStorage.setItem('refreshToken', res.refreshToken);
+                    if(res.userId) await AsyncStorage.setItem('userId', JSON.stringify(res.userId));
+                    login(res.accessToken, res.refreshToken);
+                    
+                    try {
+                        const decoded: any = jwtDecode(res.accessToken);
+                        const role = decoded.role || decoded.roles || decoded.authorities || [];
+                        const isAdmin = Array.isArray(role) 
+                            ? role.some((r: string) => r.includes('ADMIN')) 
+                            : String(role).includes('ADMIN');
+
+                        Toast.show('Register Successfully!', { duration: Toast.durations.SHORT });
+
+                        if (isAdmin) {
+                            router.replace('/(admin)/dashboard' as any);
+                        } else {
+                            setTimeout(() => {
+                                router.replace('/(tabs)/home' as any);
+                            }, 1000);
+                        }
+                    } catch (e) {
+                         Toast.show('Register Successfully!', { duration: Toast.durations.SHORT });
+                         setTimeout(() => { router.replace('/(tabs)/home' as any); }, 1000);
+                    }
+                }
             }
 
         } catch (err: any) {
-            setError(err?.message || 'Đăng ký thất bại. Vui lòng thử lại.');
+            setError(err?.message || 'Registration failed. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -135,6 +155,17 @@ export default function SignupScreen() {
                                     color={Colors.gray}
                                 />
                             </TouchableOpacity>
+                        </View>
+
+                        <Text style={styles.label}>CONFIRM PASSWORD</Text>
+                        <View style={styles.inputWrapper}>
+                            <TextInput
+                                style={[styles.input, { paddingRight: 48 }]}
+                                value={confirmPassword}
+                                onChangeText={setConfirmPassword}
+                                secureTextEntry={!showPassword}
+                                placeholderTextColor="transparent"
+                            />
                         </View>
 
                         {/* ─── TERMS CHECKBOX ─── */}

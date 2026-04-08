@@ -16,6 +16,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getProfileAPI, ProfileResponse } from '@/services/profileService';
 import PremiumUpgradeModal from '@/components/PremiumUpgradeModal';
+import { getMySubscriptionAPI } from '@/services/paymentService';
 
 export default function AccountSettingsScreen() {
     const router = useRouter();
@@ -23,36 +24,34 @@ export default function AccountSettingsScreen() {
     
     const [profileData, setProfileData] = useState<ProfileResponse | null>(null);
     const [showPremiumModal, setShowPremiumModal] = useState(false);
-    
-    // Quyết định trạng thái tài khoản
-    const isPremium = (profileData as any)?.subscriptionType === 'PREMIUM';
+    const [isPremium, setIsPremium] = useState(false);
 
-    const fetchProfile = useCallback(async () => {
+    const fetchData = useCallback(async () => {
         try {
             const userId = await AsyncStorage.getItem('userId');
             if (userId) {
-                const res = await getProfileAPI(userId);
-                setProfileData(res);
+                getProfileAPI(userId).then(res => setProfileData(res)).catch(console.log);
+                getMySubscriptionAPI().then(res => setIsPremium(res?.isActive || false)).catch(console.log);
             }
         } catch (error) {
-            console.error("Lỗi khi lấy profile:", error);
+            console.error("Error fetching data:", error);
         }
     }, []);
 
     useFocusEffect(
         useCallback(() => {
-            fetchProfile();
-        }, [fetchProfile])
+            fetchData();
+        }, [fetchData])
     );
 
     const handleLogout = () => {
         Alert.alert(
-            'Đăng xuất',
-            'Bạn có chắc chắn muốn đăng xuất?',
+            'Logout',
+            'Are you sure you want to logout?',
             [
-                { text: 'Hủy', style: 'cancel' },
+                { text: 'Cancel', style: 'cancel' },
                 {
-                    text: 'Đăng xuất',
+                    text: 'Logout',
                     style: 'destructive',
                     onPress: () => {
                         logout();
@@ -79,7 +78,7 @@ export default function AccountSettingsScreen() {
                 
                 {/* ─── HỒ SƠ ─── */}
                 <View style={styles.settingGroup}>
-                    <Text style={styles.groupLabel}>HỒ SƠ</Text>
+                    <Text style={styles.groupLabel}>PROFILE</Text>
                     <TouchableOpacity 
                         style={styles.settingItem}
                         onPress={() => router.push({
@@ -91,14 +90,14 @@ export default function AccountSettingsScreen() {
                         } as any)}
                     >
                         <Ionicons name="person-outline" size={20} color={Colors.white} />
-                        <Text style={styles.settingText}>Chỉnh sửa hồ sơ</Text>
+                        <Text style={styles.settingText}>Edit Profile</Text>
                         <Ionicons name="pencil" size={16} color={Colors.white} />
                     </TouchableOpacity>
                 </View>
 
                 {/* ─── GÓI ĐĂNG KÝ ─── */}
                 <View style={styles.settingGroup}>
-                    <Text style={styles.groupLabel}>GÓI ĐĂNG KÍ HIỆN TẠI</Text>
+                    <Text style={styles.groupLabel}>CURRENT SUBSCRIPTION</Text>
                     
                     <View style={styles.premiumBox}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -112,7 +111,7 @@ export default function AccountSettingsScreen() {
                                     {isPremium ? 'PREMIUM ACCOUNT' : 'FREE ACCOUNT'}
                                 </Text>
                                 <Text style={styles.subsDesc}>
-                                    {isPremium ? 'Tận hưởng mọi tính năng.' : 'Gói xài thử giới hạn'}
+                                    {isPremium ? 'Full access to all features.' : 'Limited free plan'}
                                 </Text>
                             </View>
                         </View>
@@ -122,14 +121,14 @@ export default function AccountSettingsScreen() {
                                 style={styles.manageBtn}
                                 onPress={() => router.push('/(tabs)/profile/my-subscription' as any)}
                             >
-                                <Text style={styles.manageBtnText}>Chi tiết</Text>
+                                <Text style={styles.manageBtnText}>Manage</Text>
                             </TouchableOpacity>
                         ) : (
                             <TouchableOpacity
                                 style={styles.upgradeBtn}
                                 onPress={() => setShowPremiumModal(true)}
                             >
-                                <Text style={styles.upgradeBtnText}>Nâng cấp</Text>
+                                <Text style={styles.upgradeBtnText}>Upgrade</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -137,17 +136,17 @@ export default function AccountSettingsScreen() {
 
                 {/* ─── TÀI KHOẢN ─── */}
                 <View style={styles.settingGroup}>
-                    <Text style={styles.groupLabel}>CÀI ĐẶT ỨNG DỤNG</Text>
+                    <Text style={styles.groupLabel}>APP SETTINGS</Text>
                     
                     <TouchableOpacity style={styles.settingItem}>
                         <Ionicons name="lock-closed-outline" size={20} color={Colors.white} />
-                        <Text style={styles.settingText}>Đổi mật khẩu</Text>
+                        <Text style={styles.settingText}>Change Password</Text>
                         <Ionicons name="chevron-forward" size={16} color={Colors.gray} />
                     </TouchableOpacity>
                     
                     <TouchableOpacity style={styles.settingItem}>
                         <Ionicons name="notifications-outline" size={20} color={Colors.white} />
-                        <Text style={styles.settingText}>Thông báo</Text>
+                        <Text style={styles.settingText}>Notifications</Text>
                         <Ionicons name="chevron-forward" size={16} color={Colors.gray} />
                     </TouchableOpacity>
                 </View>
@@ -155,7 +154,7 @@ export default function AccountSettingsScreen() {
                 {/* Nút đăng xuất */}
                 <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
                     <Ionicons name="log-out-outline" size={20} color="#FF6B6B" />
-                    <Text style={styles.logoutText}>Đăng xuất</Text>
+                    <Text style={styles.logoutText}>Logout</Text>
                 </TouchableOpacity>
             </View>
 
@@ -164,7 +163,7 @@ export default function AccountSettingsScreen() {
                 visible={showPremiumModal}
                 onClose={() => setShowPremiumModal(false)}
                 onSuccess={() => {
-                    fetchProfile();
+                    fetchData();
                 }}
             />
         </SafeAreaView>
