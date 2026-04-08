@@ -16,17 +16,17 @@ export interface Person {
 }
 
 export interface PlayListDetail {
-id: number,
-  title: string,
-  thumbnailUrl: string,
-  description: string,
-  owner: Person[],
-  collaborators: Person[],
-  tracks: TrackContentType[],
+    id: number,
+    title: string,
+    thumbnailUrl: string,
+    description: string,
+    owner: Person,
+    collaborators: Person[],
+    tracks: TrackContentType[],
 }
 
 export interface SearchTrackRequest {
-    existingTrackIds?: number[];
+    existedTrackIds?: number[];
     keyword: string;
     pageNumber: number;
     pageSize: number;
@@ -68,7 +68,7 @@ export async function searchTrackToAddAPI (dataSearch: SearchTrackRequest) : Pro
     console.log("Request SearchTrackToAddAPI: ", dataSearch);
     const res = await apiClient.get('/api/v1/track/search', {
         params: {
-            existingTrackIds: dataSearch.existingTrackIds,
+            existedTrackIds: dataSearch.existedTrackIds,
             keyword: dataSearch.keyword,
             pageNumber: dataSearch.pageNumber,
             pageSize: dataSearch.pageSize
@@ -87,5 +87,15 @@ export const addTrackToPlayListAPI = async (playlistId: number[], trackId: numbe
 
 export const removeTrackFromPlayListAPI = async (playlistId: number[], trackId: number) => {
     console.log(`DELETE REMOVETRACKFROMPLAYLISTAPI : ${BASE_URL}/api/v1/playlist-track/removeTrack`);
+    console.log('Request RemoveTrackFromPlayListAPI: ', {playlistId, trackId});
     const res = await apiClient.delete(`${BASE_URL}/api/v1/playlist-track/removeTrack`, { data: { playlistId, trackId } });
+    console.log("Response RemoveTrackFromPlayListAPI: ", res.data);
+}
+
+export const addCollaboratorToPlayListAPI = async (playlistId: number, userIds: number[]) => {
+    console.log(`POST ADDCOLLABORATORTOPLAYLISTAPI : ${BASE_URL}/api/v1/playlist-collaborator/add`);
+    console.log('Request AddCollaboratorToPlayListAPI: ', {playlistId, userIds});
+    const res = await apiClient.post(`${BASE_URL}/api/v1/playlist-collaborator/add`, {playlistId, userIds});
+    console.log("Response AddCollaboratorToPlayListAPI: ", res.data);
+    return res.data;
 }

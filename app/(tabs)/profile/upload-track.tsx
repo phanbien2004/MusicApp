@@ -17,7 +17,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -310,6 +311,26 @@ export default function UploadTrackScreen() {
     const [isFinalizing, setIsFinalizing] = useState(false);
     const [calculatedDuration, setCalculatedDuration] = useState(0);
 
+    // Reset all form fields every time this screen is focused
+    useFocusEffect(
+        useCallback(() => {
+            setStep('form');
+            setArtworkUri(null);
+            setArtworkFile(null);
+            setTrackFile(null);
+            setTrackTitle('');
+            setArtistQuery('');
+            setArtistResults([]);
+            setSelectedContributors([]);
+            setDraftData(null);
+            setReviewArtists([]);
+            setReviewTags([]);
+            setShowTagModal(false);
+            setIsFinalizing(false);
+            setCalculatedDuration(0);
+        }, [])
+    );
+
     useEffect(() => {
         getAllTagsAPI().then(setAllSystemTags).catch(e => console.error("Load tags failed:", e));
     }, []);
@@ -410,18 +431,26 @@ export default function UploadTrackScreen() {
             });
 
             Alert.alert(
-                "Tác phẩm đã được gửi",
-                "Bài hát của bạn đang được kiểm tra kỹ thuật. Chúng tôi sẽ thông báo cho bạn ngay khi mọi thứ sẵn sàng.",
-                [{ text: 'Đồng ý', onPress: () => router.back() }]
+                "Track Submitted",
+                "Your track is being processed. We'll notify you when it's ready.",
+                [{ text: 'Done', onPress: () => router.replace('/(tabs)/profile/artist-portal' as any) }]
             );
         } catch (err: any) {
             Alert.alert('Lỗi', 'Giai đoạn hoàn tất gặp lỗi.');
         } finally { setIsFinalizing(false); }
     };
 
+    const handleBack = () => {
+        if (step === 'review') {
+            setStep('form');
+        } else {
+            router.replace('/(tabs)/profile/artist-portal' as any);
+        }
+    };
+
     const renderHeader = (title: string) => (
         <View style={[styles.header, { paddingTop: insets.top, height: 60 + insets.top }]}>
-            <TouchableOpacity style={[styles.backBtn, { top: insets.top + 12 }]} onPress={() => step === 'review' ? setStep('form') : router.back()}>
+            <TouchableOpacity style={[styles.backBtn, { top: insets.top + 12 }]} onPress={handleBack}>
                 <Ionicons name="chevron-back" size={22} color={Colors.white} />
             </TouchableOpacity>
             <View style={styles.headerTitles}>

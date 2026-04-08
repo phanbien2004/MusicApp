@@ -11,17 +11,13 @@ export interface ProfileResponse {
     id: number;
     displayName: string;
     avatarUrl: string;
+    friendStatus: string;
     followedArtistCount: number,
     friendCount: number,
     playlistCount: number,
     playlists: PlayList[],
     subscriptionType?: 'FREE' | 'PREMIUM',
     artistProfileStatus?: 'NONE' | 'PENDING' | 'VERIFIED' | 'REJECTED',
-    // — Thông tin Nghệ sĩ (Backend cần trả về thêm các trường này)
-    artistStageName?: string,
-    artistBio?: string,
-    artistAvatarUrl?: string,
-    artistCoverUrl?: string,
 }
 
 export const getProfileAPI = async (id: string) : Promise<ProfileResponse> => {
@@ -49,3 +45,4 @@ export const updateProfileAPI = async (payload: UpdateProfilePayload) => {
     const res = await apiClient.post(`${BASE_URL}/api/v1/member/updateProfile`, payload);
     return res.data; // Server trả về chuỗi "Profile updated successfully!"
 };
+ 
