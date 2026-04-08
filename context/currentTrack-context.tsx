@@ -22,6 +22,7 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
     useEffect(() => {
         if (currentTrack?.trackUrl) {
             console.log("CurrentTrackProvider - New track URL:", currentTrack.trackUrl);
+            console.log("CurrentTrackProvider - id:", currentTrack.id);
             const playTimeout = setTimeout(() => {
                 player.play();
             }, 150); 

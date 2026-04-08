@@ -50,11 +50,27 @@ export default function RootLayout() {
     return (
         <AuthProvider>
             <AuthGuard />
-            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000' } }}>
+            <Stack
+                screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: '#000' },
+                    gestureEnabled: true,
+                    animation: 'slide_from_right',
+                }}
+            >
                 <Stack.Screen name="index" />
-                <Stack.Screen name="login" />
-                <Stack.Screen name="signup" />
-                <Stack.Screen name="(tabs)" />
+                <Stack.Screen
+                    name="login"
+                    options={{ animation: 'fade', gestureEnabled: false }}
+                />
+                <Stack.Screen
+                    name="signup"
+                    options={{ animation: 'slide_from_bottom', gestureEnabled: true }}
+                />
+                <Stack.Screen
+                    name="(tabs)"
+                    options={{ animation: 'fade', gestureEnabled: false }}
+                />
                 <Stack.Screen name="(admin)" />
             </Stack>
             <StatusBar style="light" />

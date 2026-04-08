@@ -1,6 +1,7 @@
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useCurrentTrack } from '@/context/currentTrack-context';
+// import { followArtistAPI, unfollowArtistAPI } from '@/services/artistService'; // Đảm bảo đã có service này
 import { acceptFriendAPI, addFriendAPI, deleteFriendAPI } from '@/services/friendService';
 import { searchAPI } from '@/services/searchService';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +14,7 @@ import {
     Image,
     Platform,
     SafeAreaView,
+    ScrollView,
     StatusBar,
     StyleSheet,
     Text,
@@ -67,6 +69,7 @@ interface SearchResult {
     name?: string;
     avatarUrl?: string;
     friendStatus?: "ACCEPTED" | "NONE" | "PENDING_RECEIVED" | "PENDING_SENT";
+    isFollowed?: boolean; // Trạng thái dành cho Artist
 }
 
 export default function SearchScreen() {
@@ -87,7 +90,7 @@ export default function SearchScreen() {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // --- Friendship Logic ---
+    // --- Friendship Logic (Users) ---
     const updateLocalFriendStatus = (id: string, status: SearchResult['friendStatus']) => {
         setResults(prev => prev?.map(item =>
             (item.type === 'Users' && item.id.toString() === id) ? { ...item, friendStatus: status } : item
@@ -107,6 +110,27 @@ export default function SearchScreen() {
     const handleTouchDeleteFriend = async (id: string) => {
         const res = await deleteFriendAPI(id);
         if (res.includes("successfully")) updateLocalFriendStatus(id, "NONE");
+    };
+
+    // --- Follow Logic (Artists) ---
+    const updateLocalFollowStatus = (id: number, status: boolean) => {
+        setResults(prev => prev?.map(item =>
+            (item.type === 'Artists' && item.id === id) ? { ...item, isFollowed: status } : item
+        ) || null);
+    };
+
+    const handleTouchFollowArtist = async (id: number) => {
+        try {
+            // await followArtistAPI(id.toString());
+            updateLocalFollowStatus(id, true);
+        } catch (e) { console.error(e); }
+    };
+
+    const handleTouchUnfollowArtist = async (id: number) => {
+        try {
+            // await unfollowArtistAPI(id.toString());
+            updateLocalFollowStatus(id, false);
+        } catch (e) { console.error(e); }
     };
 
     // --- Search Logic ---
@@ -141,11 +165,10 @@ export default function SearchScreen() {
     const renderItem = ({ item }: { item: SearchResult }) => {
         const isPlaying = item.type === 'Tracks' && currentTrack?.id === item.id;
 
-        let content;
         switch (item.type) {
             case 'Tracks':
                 const artistNames = item.contributors?.map(c => c.name).join(', ') || 'Unknown Artist';
-                content = (
+                return (
                     <TouchableOpacity
                         style={styles.itemContainer}
                         activeOpacity={0.7}
@@ -160,10 +183,7 @@ export default function SearchScreen() {
                     >
                         <Image source={{ uri: item.thumbnailUrl }} style={styles.thumbnail} />
                         <View style={styles.resultInfo}>
-                            <Text
-                                style={[styles.resultTitle, isPlaying && { color: Colors.teal }]}
-                                numberOfLines={1}
-                            >
+                            <Text style={[styles.resultTitle, isPlaying && { color: Colors.teal }]} numberOfLines={1}>
                                 {item.title}
                             </Text>
                             <Text style={styles.resultSubtitle} numberOfLines={1}>
@@ -173,11 +193,14 @@ export default function SearchScreen() {
                         {isPlaying && <EqualizerIcon />}
                     </TouchableOpacity>
                 );
-                break;
 
             case 'Users':
-                content = (
-                    <View style={styles.itemContainer}>
+                return (
+                    <TouchableOpacity 
+                        style={styles.itemContainer}
+                        activeOpacity={0.7}
+                        onPress={() => router.push({ pathname: '/profile/other-profile', params: { id: item.id.toString() } })}
+                    >
                         <Image source={{ uri: item.avatarUrl }} style={[styles.thumbnail, styles.roundAvatar]} />
                         <View style={styles.resultInfo}>
                             <Text style={styles.resultTitle}>{item.name}</Text>
@@ -197,27 +220,49 @@ export default function SearchScreen() {
                                         item.friendStatus === 'PENDING_RECEIVED' ? 'Accept' : 'Add'}
                             </Text>
                         </TouchableOpacity>
-                    </View>
+                    </TouchableOpacity>
                 );
-                break;
+
+            case 'Artists':
+                return (
+                    <TouchableOpacity 
+                        style={styles.itemContainer}
+                        activeOpacity={0.7}
+                        onPress={() => router.push({ pathname: '/profile/other-profile', params: { id: item.id.toString() } })}
+                    >
+                        <Image source={{ uri: item.avatarUrl || item.thumbnailUrl }} style={[styles.thumbnail, styles.roundAvatar]} />
+                        <View style={styles.resultInfo}>
+                            <Text style={styles.resultTitle}>{item.name}</Text>
+                            <Text style={styles.resultSubtitle}>Artist</Text>
+                        </View>
+                        <TouchableOpacity
+                            style={[styles.actionBtn, item.isFollowed && styles.actionBtnActive]}
+                            onPress={() => {
+                                if (item.isFollowed) handleTouchUnfollowArtist(item.id);
+                                else handleTouchFollowArtist(item.id);
+                            }}
+                        >
+                            <Text style={[styles.actionBtnText, item.isFollowed && styles.actionBtnTextActive]}>
+                                {item.isFollowed ? 'Following' : 'Follow'}
+                            </Text>
+                        </TouchableOpacity>
+                    </TouchableOpacity>
+                );
 
             default:
-                content = (
+                return (
                     <View style={styles.itemContainer}>
                         <Ionicons name="search" size={24} color={Colors.gray} style={{ marginRight: 15 }} />
                         <Text style={styles.resultTitle}>{item.title || item.name}</Text>
                     </View>
                 );
         }
-
-        return <View style={styles.resultWrapper}>{content}</View>;
     };
 
     return (
         <SafeAreaView style={styles.safeArea}>
             <StatusBar barStyle="light-content" />
 
-            {/* Header */}
             <View style={styles.header}>
                 <Text style={styles.logo}>AABT</Text>
                 <TouchableOpacity onPress={() => router.push('/notifications')}>
@@ -225,7 +270,6 @@ export default function SearchScreen() {
                 </TouchableOpacity>
             </View>
 
-            {/* Search Bar */}
             <View style={styles.searchWrapper}>
                 <View style={[styles.searchBar, isFocused && styles.searchBarFocused]}>
                     <Ionicons name="search" size={20} color={isFocused ? Colors.teal : Colors.gray} />
@@ -247,7 +291,6 @@ export default function SearchScreen() {
                 </View>
             </View>
 
-            {/* Category Tabs */}
             <View style={{ height: 50 }}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
                     {CATEGORIES.map((cat) => (
@@ -265,7 +308,6 @@ export default function SearchScreen() {
                 </ScrollView>
             </View>
 
-            {/* Results List */}
             <FlatList
                 data={results}
                 keyExtractor={(item, index) => `${item.type}-${item.id}-${index}`}
@@ -284,8 +326,6 @@ export default function SearchScreen() {
     );
 }
 
-import { ScrollView } from 'react-native';
-
 const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: '#000', paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 15 },
@@ -300,19 +340,15 @@ const styles = StyleSheet.create({
     categoryText: { fontSize: 13, fontWeight: '700', color: Colors.gray },
     categoryTextActive: { color: '#FFF' },
     listContent: { paddingHorizontal: 16, paddingBottom: 150 },
-    resultWrapper: { paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: '#111' },
-    itemContainer: { flexDirection: 'row', alignItems: 'center', gap: 15 },
+    itemContainer: { flexDirection: 'row', alignItems: 'center', gap: 15, paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: '#111' },
     thumbnail: { width: 55, height: 55, borderRadius: 10, backgroundColor: '#1A1A1A' },
     roundAvatar: { borderRadius: 30 },
     resultInfo: { flex: 1 },
     resultTitle: { fontSize: 16, fontWeight: '700', color: '#FFF', marginBottom: 4 },
     resultSubtitle: { fontSize: 13, color: Colors.gray },
-
-    // Equalizer Styles
     equalizerContainer: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', width: 30, height: 20, gap: 3 },
     equalizerBar: { width: 3.5, height: '100%', backgroundColor: Colors.teal, borderRadius: 2 },
-
-    actionBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: Colors.teal },
+    actionBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: Colors.teal, minWidth: 85, alignItems: 'center' },
     actionBtnActive: { backgroundColor: Colors.teal },
     actionBtnText: { fontSize: 12, fontWeight: '800', color: Colors.teal },
     actionBtnTextActive: { color: '#FFF' },

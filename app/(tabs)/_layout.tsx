@@ -29,17 +29,17 @@ const HIDDEN_SCREENS = [
     'profile/account-settings',
     'profile/artist-portal',
     // 'profile/list',
-    'profile/upload-track'
+    'profile/upload-track',
 ];
 
 function TabLayoutInner() {
     const insets = useSafeAreaInsets();
     const pathname = usePathname();
-    
-    // Kiểm tra xem có đang ở màn hình phụ cần ẩn MiniPlayer hay không
+
+    // Check if currently on a sub-screen that should hide MiniPlayer
     const isHiddenScreen = HIDDEN_SCREENS.some(s => pathname.includes(s));
 
-    // Lấy state lưu Tab cuối cùng hoạt động để giữ sáng icon
+    // Track last active main tab to keep it highlighted when on sub-screens
     const { lastActiveTab, setLastActiveTab } = usePlayer();
 
     return (
@@ -47,24 +47,28 @@ function TabLayoutInner() {
             <StatusBar barStyle="light-content" />
             
             <Tabs
+                initialRouteName="home"
                 screenListeners={{
-                    focus: (e) => {
-                        const target = e.target as string;
-                        if (target) {
-                            const routeName = target.split('-')[0];
-                            if (MAIN_TABS.includes(routeName)) {
-                                setLastActiveTab(routeName);
-                            }
+                    state: (e) => {
+                        // Use route state directly — more reliable than parsing target string
+                        const state = (e.data as any)?.state;
+                        if (!state) return;
+                        const activeRoute = state.routes?.[state.index];
+                        if (activeRoute && MAIN_TABS.includes(activeRoute.name)) {
+                            setLastActiveTab(activeRoute.name);
                         }
                     },
                 }}
                 tabBar={(props) => {
-                    // Logic giữ sáng Tab cũ khi điều hướng vào các màn hình con (href: null)
+                    // When on a sub-screen, keep the last active tab highlighted
+                    let activeIndex = props.state.index;
+                    if (isHiddenScreen && lastActiveTab) {
+                        const idx = props.state.routes.findIndex((r) => r.name === lastActiveTab);
+                        activeIndex = idx >= 0 ? idx : props.state.index;
+                    }
+
                     const customState = isHiddenScreen
-                        ? {
-                            ...props.state,
-                            index: props.state.routes.findIndex((r) => r.name === lastActiveTab),
-                          }
+                        ? { ...props.state, index: activeIndex }
                         : props.state;
 
                     return (
@@ -146,6 +150,7 @@ function TabLayoutInner() {
                 <Tabs.Screen name="profile/account-settings" options={{ href: null }} />
                 <Tabs.Screen name="profile/upload-track" options={{ href: null }} />
                 <Tabs.Screen name="profile/artist-portal" options={{ href: null }} />
+                <Tabs.Screen name="profile/other-profile" options={{ href: null }} />
             </Tabs>
         </View>
     );

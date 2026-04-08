@@ -26,7 +26,6 @@ const PLAYLIST_CARD_WIDTH = (width - 48) / 2;
 export default function ProfileScreen() {
     const router = useRouter();
     const [profileData, setProfileData] = useState<ProfileResponse | null>(null);
-    // Di chuyển useState vào bên trong Component
     const [playlists, setPlaylists] = useState<PlayList[] | null>(null);
 
     const fetchProfile = useCallback(async () => {
