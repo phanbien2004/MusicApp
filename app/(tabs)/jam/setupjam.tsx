@@ -79,7 +79,7 @@ export default function SetupJamScreen() {
                             {loading ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="play-circle" size={22} color={Colors.white} /><Text style={styles.startBtnText}>Start Jam Session</Text></>}
                         </LinearGradient>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+                    <TouchableOpacity style={styles.cancelBtn} onPress={() => router.replace('/(tabs)/jam' as any)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
                 </View>
             </View>
         </SafeAreaView>

@@ -6,7 +6,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { jwtDecode } from 'jwt-decode';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { jwtDecode } from 'jwt-decode';
 import React, { useState } from 'react';
 import {
     ActivityIndicator,

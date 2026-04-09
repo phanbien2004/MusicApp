@@ -95,7 +95,7 @@ export default function JoinJamScreen() {
                             <Text style={styles.joinBtnText}>{loading ? 'Joining...' : 'Join'}</Text>
                         </LinearGradient>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+                    <TouchableOpacity style={styles.cancelBtn} onPress={() => router.replace('/(tabs)/jam' as any)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
                 </View>
             </View>
         </SafeAreaView>

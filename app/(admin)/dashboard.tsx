@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function AdminDashboard() {
     const router = useRouter();
@@ -65,7 +66,11 @@ export default function AdminDashboard() {
                 {/* Nút Đăng xuất cho Admin */}
                 <TouchableOpacity 
                     style={styles.logoutBtn} 
-                    onPress={() => router.replace('/login')}
+                    onPress={async () => {
+                        await AsyncStorage.removeItem('accessToken');
+                        await AsyncStorage.removeItem('refreshToken');
+                        router.replace('/login');
+                    }}
                 >
                     <Text style={styles.logoutText}>Exit Admin Mode</Text>
                 </TouchableOpacity>

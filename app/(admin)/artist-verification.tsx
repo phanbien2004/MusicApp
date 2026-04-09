@@ -1,10 +1,10 @@
 import { Colors } from '@/constants/theme';
+import { AdminArtistProfilePreviewDTO, getAllPendingArtistProfilesAPI } from '@/services/admin/adminService';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useFocusEffect } from 'expo-router';
-import React, { useState, useCallback } from 'react';
-import { FlatList, StatusBar, StyleSheet, Text, TouchableOpacity, View, Image } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { FlatList, Image, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AdminArtistProfilePreviewDTO, getAllPendingArtistProfilesAPI } from '@/services/adminService';
 
 export default function ArtistVerification() {
     const router = useRouter();

@@ -1,17 +1,15 @@
 import { Colors } from '@/constants/theme';
+import {
+    AdminArtistProfileDTO,
+    approveArtistProfileAPI,
+    getArtistProfileByIdAPI,
+    rejectArtistProfileAPI
+} from '@/services/admin/adminService';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
-import { 
-    AdminArtistProfileDTO, 
-    getArtistProfileByIdAPI, 
-    approveArtistProfileAPI, 
-    rejectArtistProfileAPI 
-} from '@/services/adminService';
-import { Alert, Image, ActivityIndicator } from 'react-native';
 
 export default function ApplicantDetail() {
     const router = useRouter();

@@ -31,7 +31,7 @@ export const createJamSessionAPI = async (size: number, isPrivate: boolean) => {
     console.log(`POST CREATEJAMSESSIONAPI : ${BASE_URL}/api/v1/jam`);
     const res = await apiClient.post(`${BASE_URL}/api/v1/jam`, {
         size,
-        private: isPrivate,
+        isPrivate: isPrivate,
     });
     console.log("Response CreateJamSessionAPI: ", res.data);
     return res.data;
@@ -49,6 +49,7 @@ export const joinJamSessionByIdAPI = async (jamSessionId: number, jamSessionCode
 
 export const joinJamSessionByCodeAPI = async (jamSessionCode: string, jamSessionId = 0) => {
     console.log(`PUT JOINJAMSESSIONBYCODEAPI : ${BASE_URL}/api/v1/jam/joinByCode`);
+    console.log("Payload JoinJamSessionByCodeAPI: ", { jamSessionId, jamSessionCode });
     const res = await apiClient.put(`${BASE_URL}/api/v1/jam/joinByCode`, {
         jamSessionId,
         jamSessionCode,
@@ -59,6 +60,7 @@ export const joinJamSessionByCodeAPI = async (jamSessionCode: string, jamSession
 
 export const leaveJamSessionAPI = async ({ jamSessionId, jamSessionCode }: JoinJamPayload) => {
     console.log(`PUT LEAVEJAMSESSIONAPI : ${BASE_URL}/api/v1/jam/leave`);
+    console.log("Payload LeaveJamSessionAPI: ", { jamSessionId, jamSessionCode });
     const res = await apiClient.put(`${BASE_URL}/api/v1/jam/leave`, {
         jamSessionId: jamSessionId ?? 0,
         jamSessionCode: jamSessionCode ?? '',
