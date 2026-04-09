@@ -1,3 +1,4 @@
+import { IMAGE } from '@/constants/image';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useCurrentTrack } from '@/context/currentTrack-context';
@@ -201,7 +202,10 @@ export default function SearchScreen() {
                         activeOpacity={0.7}
                         onPress={() => router.push({ pathname: '/profile/other-profile', params: { id: item.id.toString() } })}
                     >
-                        <Image source={{ uri: item.avatarUrl }} style={[styles.thumbnail, styles.roundAvatar]} />
+                        <Image 
+                            source={item.avatarUrl ? { uri: item.avatarUrl } : IMAGE.defaultAvatar} 
+                            style={[styles.thumbnail, styles.roundAvatar]} 
+                        />
                         <View style={styles.resultInfo}>
                             <Text style={styles.resultTitle}>{item.name}</Text>
                             <Text style={styles.resultSubtitle}>User</Text>

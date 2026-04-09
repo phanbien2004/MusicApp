@@ -10,6 +10,7 @@ export interface ActiveJamSession {
     size?: number;
     isPrivate?: boolean;
     isHost?: boolean;
+    notificationType?: "PLAY" | "JUMP" | "SKIP" | "PAUSE" | "PREVIOUS" | "JAM_JOIN"; 
 }
 
 interface JamContextType {

@@ -1,10 +1,13 @@
 import { Colors } from '@/constants/theme';
+import { ArtistProfileData, getMyArtistProfileAPI } from '@/services/artistService';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useState, useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
     Dimensions,
+    Image,
     Platform,
     SafeAreaView,
     ScrollView,
@@ -12,24 +15,29 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
-    Image
+    View
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getProfileAPI, ProfileResponse } from '@/services/profileService';
 
 const { width } = Dimensions.get('window');
 
 export default function ArtistPortalScreen() {
     const router = useRouter();
-    const [profileData, setProfileData] = useState<ProfileResponse | null>(null);
+    const [profileData, setProfileData] = useState<ArtistProfileData | null>(null);
 
     const fetchProfile = useCallback(async () => {
         try {
             const userId = await AsyncStorage.getItem('userId');
             if (userId) {
-                const res = await getProfileAPI(userId);
-                setProfileData(res);
+                const res = await getMyArtistProfileAPI();
+                if(res !== null) {
+                    setProfileData(res);
+                    console.log("Fetched Artist Profile: ", res.id);
+                    console.log("Fetched Artist Profile Stage Name: ", res.stageName);
+                }
+                if(profileData?.id && profileData?.stageName) {
+                    console.log("Profile Artist ID: ", profileData.id);
+                    console.log("Profile Artist Stage Name: ", profileData.stageName);
+                }
             }
         } catch (error) {
             console.error("Lỗi khi lấy profile artist:", error);
@@ -65,27 +73,27 @@ export default function ArtistPortalScreen() {
 
                 {/* Profile Top */}
                 <View style={styles.profileTop}>
-                    {profileData?.artistAvatarUrl || profileData?.avatarUrl ? (
-                         <Image source={{ uri: profileData?.artistAvatarUrl || profileData?.avatarUrl }} style={styles.avatarPlaceholder} />
+                    {profileData?.avatarUrl || profileData?.avatarUrl ? (
+                         <Image source={{ uri: profileData?.avatarUrl || profileData?.avatarUrl }} style={styles.avatarPlaceholder} />
                     ) : (
                          <View style={[styles.avatarPlaceholder, { alignItems: 'center', justifyContent: 'center'}]}>
                               <Ionicons name="person" size={32} color="#555" />
                          </View>
                     )}
                     <View style={styles.profileInfo}>
-                        <Text style={styles.profileName}>{profileData?.artistStageName || profileData?.displayName || 'Unknown Artist'}</Text>
-                        <Text style={styles.profileHandle}>@{(profileData?.artistStageName || profileData?.displayName || 'unknown').toLowerCase().replace(/\s/g, '')}</Text>
+                        <Text style={styles.profileName}>{profileData?.stageName  || 'Unknown Artist'}</Text>
+                        {/* <Text style={styles.profileHandle}>@{(profileData?.artistStageName || profileData?.displayName || 'unknown').toLowerCase().replace(/\s/g, '')}</Text> */}
                     </View>
                 </View>
 
                 {/* Stats */}
                 <View style={styles.statsRow}>
                     <View style={styles.statBox}>
-                        <Text style={styles.statNumber}>0</Text>
+                        <Text style={styles.statNumber}>{profileData?.followerCount || 0}</Text>
                         <Text style={styles.statLabel}>FANS</Text>
                     </View>
                     <View style={styles.statBox}>
-                        <Text style={styles.statNumber}>{profileData?.friendCount || 0}</Text>
+                        <Text style={styles.statNumber}>{profileData?.followerCount || 0}</Text>
                         <Text style={styles.statLabel}>FRIENDS</Text>
                     </View>
                     <View style={styles.statBox}>
@@ -95,7 +103,10 @@ export default function ArtistPortalScreen() {
                 </View>
 
                 {/* Upload Button */}
-                <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/profile/upload-track' as any)}>
+                <TouchableOpacity activeOpacity={0.8} onPress={() => router.push({
+                    pathname: "/profile/upload-track",
+                    params: { id: profileData?.id, stageName: profileData?.stageName }
+                })}>
                     <LinearGradient
                         colors={['#A855F7', '#3B82F6', '#60A5FA']}
                         start={{ x: 0, y: 0 }}

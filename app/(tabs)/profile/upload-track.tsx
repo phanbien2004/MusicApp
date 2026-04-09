@@ -15,7 +15,7 @@ import { createAudioPlayer, useAudioPlayer, useAudioPlayerStatus } from 'expo-au
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
@@ -308,6 +308,7 @@ export default function UploadTrackScreen() {
     const [showTagModal, setShowTagModal] = useState(false);
     const [isFinalizing, setIsFinalizing] = useState(false);
     const [calculatedDuration, setCalculatedDuration] = useState(0);
+    const {id, stageName} =  useLocalSearchParams() as { id: string, stageName: string };
 
     // Reset all form fields every time this screen is focused
     useFocusEffect(
@@ -334,17 +335,37 @@ export default function UploadTrackScreen() {
     }, []);
 
     useEffect(() => {
-        const timer = setTimeout(async () => {
-            if (artistQuery.trim().length > 1) {
-                setIsSearching(true);
-                try {
-                    const res = await searchAPI({ keyword: artistQuery, type: 'artists', pageNumber: 1, pageSize: 5 });
-                    setArtistResults(res.artistPreviewDTOS?.content || []);
-                } catch (e) { console.error('Search error:', e); } finally { setIsSearching(false); }
-            } else { setArtistResults([]); }
+    const timer = setTimeout(async () => {
+        if (artistQuery.trim().length > 1) {
+            setIsSearching(true);
+            try {
+                const res = await searchAPI({ keyword: artistQuery, type: 'artists', pageNumber: 1, pageSize: 10 });
+                const allResults = res.artistPreviewDTOS?.content || [];
+
+                // --- LOGIC LỌC KẾT QUẢ ---
+                const filtered = allResults.filter(item => {
+                    // 1. Không phải là chính bản thân mình (id lấy từ params)
+                    const isNotSelf = Number(item.id) !== Number(id);
+                    
+                    // 2. Chưa có trong danh sách contributors đã chọn
+                    const isNotAdded = !selectedContributors.some(c => Number(c.artist.id) === Number(item.id));
+                    
+                    return isNotSelf && isNotAdded;
+                });
+
+                setArtistResults(filtered);
+            } catch (e) { 
+                console.error('Search error:', e); 
+            } finally { 
+                setIsSearching(true); // Nhầm chỗ này rồi Biên, phải là false nhé
+                setIsSearching(false); 
+            }
+        } else { 
+            setArtistResults([]); 
+        }
         }, 500);
         return () => clearTimeout(timer);
-    }, [artistQuery]);
+    }, [artistQuery, id, selectedContributors]); // Thêm id và selectedContributors vào deps để lọc chính xác
 
     // --- Hàm add artist với Role cụ thể ---
     const addContributor = (artist: ArtistContentType, role: 'PRODUCER' | 'FEATURED') => {
@@ -396,6 +417,7 @@ export default function UploadTrackScreen() {
                 duration,
                 featuredArtistDTO: selectedContributors.map(c => ({
                     id: c.artist.id,
+                    name: c.artist.name,
                     role: c.role
                 })),
             });
@@ -411,15 +433,23 @@ export default function UploadTrackScreen() {
         }
     };
 
-    const handleFinalize = async () => {
+    const handleFinalize = async (id: string, stageName: string) => {
         if (!draftData) return;
         setIsFinalizing(true);
         try {
+            console.log(id);
+            console.log(stageName);
             // --- TẠO DANH SÁCH CONTRIBUTORS THEO CÁCH 2 ---
             const finalContributors: contributorDTO[] = selectedContributors.map(c => ({
                 id: Number(c.artist.id),
+                name: c.artist.name,
                 role: c.role
             }));
+            finalContributors.push({
+                id: Number(id),
+                name: stageName,
+                role: 'OWNER'
+            })
             // Việc gán người upload (Owner) làm chủ đã được Backend đảm nhận tự động và bảo mật.
 
             await submitFinalizeAPI({
@@ -510,7 +540,7 @@ export default function UploadTrackScreen() {
                             </TouchableOpacity>
                         ))}
                     </View>
-                    <TouchableOpacity style={[styles.submitBtn, isFinalizing && { opacity: 0.6 }]} onPress={handleFinalize} disabled={isFinalizing}>
+                    <TouchableOpacity style={[styles.submitBtn, isFinalizing && { opacity: 0.6 }]} onPress={() =>handleFinalize(id, stageName)} disabled={isFinalizing}>
                         <LinearGradient colors={['#A855F7', '#3B82F6']} style={styles.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
                             {isFinalizing ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnText}>DONE</Text>}
                         </LinearGradient>

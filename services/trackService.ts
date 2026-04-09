@@ -33,6 +33,7 @@ export interface SubmitDraftResponse {
 
 export interface contributorDTO {
     id: number;
+    name: string;
     role: "OWNER" | "PRODUCER" | "FEATURED"
 }
 
