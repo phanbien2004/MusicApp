@@ -94,7 +94,7 @@ export default function ArtistPortalScreen() {
                     </View>
                     <View style={styles.statBox}>
                         <Text style={styles.statNumber}>{profileData?.followerCount || 0}</Text>
-                        <Text style={styles.statLabel}>FRIENDS</Text>
+                        <Text style={styles.statLabel}>ALBUMS</Text>
                     </View>
                     <View style={styles.statBox}>
                         <Text style={styles.statNumber}>0</Text>

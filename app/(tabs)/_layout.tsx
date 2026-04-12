@@ -20,8 +20,6 @@ const HIDDEN_SCREENS = [
     'jam/setupjam',
     'jam/joinjam',
     'jam/jamroom',
-    'jam/jamnotification',
-    'jam/jamsettings',
     'profile/register-artist',
     'profile/addlist',
     'profile/edit-profile',
@@ -35,10 +33,6 @@ const HIDDEN_SCREENS = [
 function TabLayoutInner() {
     const insets = useSafeAreaInsets();
     const pathname = usePathname();
-    // Tất cả màn hình ẩn (href: null) — cần giữ tab cuối sáng
-    const HIDDEN_SCREENS = ['player/currentTrack', 'jam/setupjam', 'jam/joinjam', 'notifications', 
-    'jam/jamroom', 'jam/jamnotification', 'jam/jamsettings', 'profile/register-artist', 'profile/addlist', 'profile/edit-profile',
-    'profile/my-subscription', 'profile/account-settings'];
     const isHiddenScreen = HIDDEN_SCREENS.some(s => pathname.includes(s));
 
     // Track last active main tab to keep it highlighted when on sub-screens
@@ -142,8 +136,9 @@ function TabLayoutInner() {
                 <Tabs.Screen name="jam/setupjam" options={{ href: null }} />
                 <Tabs.Screen name="jam/joinjam" options={{ href: null }} />
                 <Tabs.Screen name="jam/jamroom" options={{ href: null }} />
-                <Tabs.Screen name="jam/jamnotification" options={{ href: null }} />
-                <Tabs.Screen name="jam/jamsettings" options={{ href: null }} />
+                <Tabs.Screen name="jam/jamInviteSheet" options={{ href: null }} />
+                <Tabs.Screen name="jam/jamNotificationSheet" options={{ href: null }} />
+                <Tabs.Screen name="jam/jamSettingSheet" options={{ href: null }} />
                 <Tabs.Screen name="profile/register-artist" options={{ href: null }} />
                 <Tabs.Screen name="profile/addlist" options={{ href: null }} />
                 <Tabs.Screen name="profile/list" options={{ href: null }} />
@@ -161,11 +156,11 @@ function TabLayoutInner() {
 export default function TabLayout() {
     return (
         <PlayerProvider>
-            <CurrentTrackProvider>
-                <JamProvider>
+            <JamProvider>
+                <CurrentTrackProvider>
                     <TabLayoutInner />
-                </JamProvider>
-            </CurrentTrackProvider>
+                </CurrentTrackProvider>
+            </JamProvider>
         </PlayerProvider>
     );
 }
@@ -177,7 +172,6 @@ const styles = StyleSheet.create({
     },
     tabBarContainer: {
         backgroundColor: 'transparent',
-        // Đảm bảo container này ôm khít vạch điều hướng phía dưới
         width: '100%',
     }
 });

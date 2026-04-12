@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/theme';
 import {
-    AdminArtistProfileDTO,
+    ArtistProfilelDTO,
     approveArtistProfileAPI,
     getArtistProfileByIdAPI,
     rejectArtistProfileAPI
@@ -17,7 +17,7 @@ export default function ApplicantDetail() {
     const { id } = useLocalSearchParams<{ id: string }>();
 
     const [isSubmitting, setIsSubmitting] = React.useState(false);
-    const [profile, setProfile] = React.useState<AdminArtistProfileDTO | null>(null);
+    const [profile, setProfile] = React.useState<ArtistProfilelDTO | null>(null);
     const [toastMessage, setToastMessage] = React.useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
     React.useEffect(() => {

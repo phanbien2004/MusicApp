@@ -53,8 +53,8 @@ export default function AccountSettingsScreen() {
                 {
                     text: 'Logout',
                     style: 'destructive',
-                    onPress: () => {
-                        logout();
+                    onPress: async () => {
+                        await logout();
                         router.replace('/login' as any);
                     },
                 },

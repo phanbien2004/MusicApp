@@ -1,11 +1,18 @@
 import React, { createContext, useContext, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+    ACCESS_TOKEN_STORAGE_KEY,
+    ACTIVE_JAM_STORAGE_KEY,
+    REFRESH_TOKEN_STORAGE_KEY,
+    USER_ID_STORAGE_KEY,
+} from '@/constants/storageKeys';
 
 interface AuthContextType {
     isLoggedIn: boolean;
     accessToken: string | null;
     refreshToken: string | null;
     login: (accessToken?: string, refreshToken?: string) => void;
-    logout: () => void;
+    logout: () => Promise<void>;
     newToken: (accessToken?: string, refreshToken?: string) => void;
 }
 
@@ -14,7 +21,7 @@ const AuthContext = createContext<AuthContextType>({
     accessToken: null,
     refreshToken: null,
     login: () => { },
-    logout: () => { },
+    logout: async () => { },
     newToken : () => { }
 });
 
@@ -29,10 +36,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (rToken) setRefreshToken(rToken);
     };
 
-    const logout = () => {
+    const logout = async () => {
+        // Clear local state first so AuthGuard can redirect quickly.
         setIsLoggedIn(false);
         setAccessToken(null);
         setRefreshToken(null);
+
+        // Also clear persisted tokens + active jam so user doesn't re-enter jam after logging out.
+        try {
+            await AsyncStorage.multiRemove([
+                ACCESS_TOKEN_STORAGE_KEY,
+                REFRESH_TOKEN_STORAGE_KEY,
+                USER_ID_STORAGE_KEY,
+                ACTIVE_JAM_STORAGE_KEY,
+            ]);
+        } catch (error) {
+            console.log('Logout storage cleanup failed:', error);
+        }
     };
 
     const newToken = (aToken?: string, rToken?: string) => {

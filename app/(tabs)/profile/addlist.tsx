@@ -37,7 +37,6 @@ export default function AddListScreen() {
                 placeholder="Enter playlist name"
                 placeholderTextColor="#888"
                 value={playlistName}
-                onChangeText={setPlaylistName}
                 autoFocus={true} // Tự động hiện bàn phím khi vào màn hình
                 onChangeText={(text) => setPlaylistName(text)}
             />

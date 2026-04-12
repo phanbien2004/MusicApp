@@ -29,7 +29,7 @@ export const useJamSocket = (accessToken: string, jamSessionId: number) => {
 
             // Đăng ký nhận thông báo từ Jam
             // Lưu ý: Khớp với "/jam/notification" + id bên Java của Biên
-            const topic = `/jam/notification/${jamSessionId}`; 
+            const topic = `/jam/notification${jamSessionId}`; 
             
             client.subscribe(topic, (message: IMessage) => {
                 if (message.body) {

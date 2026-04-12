@@ -180,7 +180,7 @@ export default function SearchScreen() {
                             duration: item.duration || 0,
                             contributors: item.contributors || [],
                             trackUrl: item.trackUrl || ''
-                        })}
+                        }, false)}
                     >
                         <Image source={{ uri: item.thumbnailUrl }} style={styles.thumbnail} />
                         <View style={styles.resultInfo}>

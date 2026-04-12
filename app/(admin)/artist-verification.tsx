@@ -1,5 +1,5 @@
 import { Colors } from '@/constants/theme';
-import { AdminArtistProfilePreviewDTO, getAllPendingArtistProfilesAPI } from '@/services/admin/adminService';
+import { AllPendingArtistProfilePreviewDTO, getAllPendingArtistProfilesAPI } from '@/services/admin/adminService';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
@@ -10,7 +10,7 @@ export default function ArtistVerification() {
     const router = useRouter();
     const insets = useSafeAreaInsets(); // Lấy thông tin vùng an toàn
     
-    const [pendingList, setPendingList] = useState<AdminArtistProfilePreviewDTO[]>([]);
+    const [pendingList, setPendingList] = useState<AllPendingArtistProfilePreviewDTO[]>([]);
 
     useFocusEffect(
         useCallback(() => {
@@ -65,7 +65,7 @@ export default function ArtistVerification() {
                                 <View style={styles.avatarPlaceholder} />
                             )}
                             <View style={styles.info}>
-                                <Text style={styles.name}>{item.stageName || item.name || "Unknown Artist"}</Text>
+                                <Text style={styles.name}>{item.stageName  || "Unknown Artist"}</Text>
                                 {/* Có thể hiển thị createdAt chỗ này */}
                                 <Text style={styles.time}>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}</Text>
                             </View>
@@ -100,3 +100,4 @@ const styles = StyleSheet.create({
     pagination: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20 },
     pageText: { color: '#FFF', fontSize: 14, fontWeight: 'bold' }
 });
+

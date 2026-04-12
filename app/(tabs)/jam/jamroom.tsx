@@ -1,120 +1,214 @@
-import { Colors } from '@/constants/theme';
-import { useAuth } from '@/context/auth-context';
-import { type CurrentTrack, useCurrentTrack } from '@/context/currentTrack-context';
-import { useJam } from '@/context/jam-context';
-import {
-    createStompClient,
-    deleteJamSessionAPI,
-    inviteFriendsAPI,
-    leaveJamSessionAPI,
-    updateJamSessionAPI,
-} from '@/services/jamService';
-import { savePlayerStateAPI } from '@/services/playerStateService';
-import { MemberContentType, searchAPI } from '@/services/searchService';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import Slider from '@react-native-community/slider';
 import { useAudioPlayerStatus } from 'expo-audio';
-import * as Clipboard from 'expo-clipboard';
-import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     Animated,
     Dimensions,
-    FlatList,
     Image,
-    PanResponder,
-    Platform,
     SafeAreaView,
     StatusBar,
     StyleSheet,
-    Switch,
     Text,
-    TextInput,
     TouchableOpacity,
     TouchableWithoutFeedback,
     View
 } from 'react-native';
 import Toast from 'react-native-root-toast';
 
+import { Colors } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
+import { useCurrentTrack } from '@/context/currentTrack-context';
+import { useJam } from '@/context/jam-context';
+
+import { createStompClient } from '@/api/apiSocket';
+import { deleteJamSessionAPI, leaveJamSessionAPI, updateJamSessionAPI } from '@/services/jamService';
+import { searchAPI } from '@/services/searchService';
+
+import { acceptNotification, acceptNotificationRequestDTO } from '@/services/jamService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import JamInviteSheet from './jamInviteSheet';
+import JamNotificationSheet from './jamNotificationSheet';
+import JamSettingsSheet from './jamSettingSheet';
+
 const { width, height } = Dimensions.get('window');
 const ALBUM_SIZE = width * 0.62;
 const SHEET_HEIGHT = height * 0.55;
 
-// --- HELPERS (Logic của Biên) ---
-const avatarColors = ['#555', '#6D28D9', '#4C1D95'];
-const peopleCounts = ['02', '04', '06', '08', '10'];
+export default function JamRoomScreen() {
+    const router = useRouter();
+    const { jamId } = useLocalSearchParams<{ jamId?: string }>();
+    const { accessToken } = useAuth();
+    const { activeSession, clearActiveSession, isHydrated, setActiveSession } = useJam();
+    const { currentTrack, player, setCurrentTrack } = useCurrentTrack()!;
+    const status = useAudioPlayerStatus(player);
+    const isHost = Boolean(activeSession?.isHost);
 
-type BottomSheet = 'none' | 'invite' | 'notification' | 'settings';
 
-
-
-const parseStoredMemberId = (value: string | null) => {
-    if (!value) return null;
-    try {
-        const parsedValue = JSON.parse(value);
-        return typeof parsedValue === 'number' ? parsedValue : Number(parsedValue);
-    } catch { return Number(value) || null; }
-};
-
-const normalizeSeekTime = (value: unknown) => {
-    const normalizedValue = typeof value === 'number' ? value : Number(value);
-    return Number.isFinite(normalizedValue) && normalizedValue >= 0 ? normalizedValue : null;
-};
-
-const normalizeJamTrack = (value: unknown): CurrentTrack | null => {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-    const source = value as Record<string, unknown>;
-    const normalizedId = Number(source.id);
-    const trackUrl = typeof source.trackUrl === 'string' ? source.trackUrl.trim() : '';
-    if (!normalizedId || !trackUrl) return null;
-
-    return {
-        id: normalizedId,
-        title: String(source.title || ''),
-        thumbnailUrl: String(source.thumbnailUrl || ''),
-        duration: Number(source.duration) || 0,
-        contributors: Array.isArray(source.contributors) ? source.contributors : [],
-        trackUrl,
-    };
-};
-
-const waitForTrackSync = (delayMs = 250) => new Promise((resolve) => setTimeout(resolve, delayMs));
-
-// --- COMPONENT ICON SÓNG NHẠC ĐỘNG ---
-const PlayingAnimation = () => {
-    const anim1 = useRef(new Animated.Value(6)).current;
-    const anim2 = useRef(new Animated.Value(12)).current;
-    const anim3 = useRef(new Animated.Value(8)).current;
+    const [activeSheet, setActiveSheet] = useState<'none' | 'invite' | 'notification' | 'settings'>('none');
+    const [activityItems, setActivityItems] = useState<any[]>([]);
+    const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
+    const [privacyMode, setPrivacyMode] = useState(false);
+    const [maxPeople, setMaxPeople] = useState('04');
+    const [showPeoplePicker, setShowPeoplePicker] = useState(false);
+    
+    const [inviteQuery, setInviteQuery] = useState('');
+    const [inviteResults, setInviteResults] = useState<any[]>([]);
+    const [inviteLoading, setInviteLoading] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
-        const createAnim = (val: Animated.Value, to: number) =>
-            Animated.loop(
-                Animated.sequence([
-                    Animated.timing(val, { toValue: to, duration: 400, useNativeDriver: false }),
-                    Animated.timing(val, { toValue: 6, duration: 400, useNativeDriver: false }),
-                ])
-            );
-        Animated.parallel([createAnim(anim1, 16), createAnim(anim2, 10), createAnim(anim3, 18)]).start();
-    }, []);
+        if (!inviteQuery.trim()) {
+            setInviteResults([]);
+        }
+    }, [inviteQuery]);
 
-    return (
-        <View style={styles.eqContainer}>
-            <Animated.View style={[styles.eqBar, { height: anim1 }]} />
-            <Animated.View style={[styles.eqBar, { height: anim2 }]} />
-            <Animated.View style={[styles.eqBar, { height: anim3 }]} />
-        </View>
-    );
-};
+    const handleSearchInvites = async (query: string) => {
+        if (!query.trim()) return;
+        setInviteLoading(true);
+        try {
+            const data = await searchAPI({
+                keyword: query,
+                type: 'members',
+                pageNumber: 1,
+                pageSize: 20
+            });
+            if (data.memberPreviewDTOS?.content) {
+                setInviteResults(data.memberPreviewDTOS.content);
+            } else {
+                setInviteResults([]);
+            }
+        } catch (error) {
+            console.error("Lỗi khi tìm kiếm:", error);
+        } finally {
+            setInviteLoading(false);
+        }
+    };
 
-// --- CUSTOM HOOK CHO BOTTOM SHEET ---
-function useBottomSheet(onClose: () => void) {
+    const [isSeeking, setIsSeeking] = useState(false);
+    const [seekValue, setSeekValue] = useState(0);
+
+    const stompClientRef = useRef<any>(null);
+    const playerRef = useRef(player);
+    const isHostRef = useRef(isHost);     
+    const currentTrackRef = useRef(currentTrack);
+    const memberIdRef = useRef<number | null>(null);
+    const progressWidthRef = useRef(1);
+
+    useEffect(() => { playerRef.current = player; }, [player]);
+    useEffect(() => { isHostRef.current = isHost; }, [isHost]);
+
     const slideAnim = useRef(new Animated.Value(SHEET_HEIGHT)).current;
     const overlayAnim = useRef(new Animated.Value(0)).current;
     const dragY = useRef(new Animated.Value(0)).current;
 
-    const open = () => {
+    // const formatMessageWithTime = (originalMessage: any) => {
+    //     if (!originalMessage || typeof originalMessage !== 'string') {
+    //         return "";
+    //     }
+    //     const match = originalMessage.match(/\d+/);
+        
+    //     if (match) {
+    //         const seconds = parseInt(match[0], 10);
+    //         const mins = Math.floor(seconds / 60);
+    //         const secs = seconds % 60;
+    //         const timeFormatted = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    //         return originalMessage.replace(match[0], timeFormatted);
+    //     }
+    //     return originalMessage;
+    // };
+
+    const handlePushNotification = async(data : any) => {
+        const userId = await AsyncStorage.getItem('userId');
+        if(data.senderId != userId) {
+            Toast.show(data.message, {
+                duration: Toast.durations.LONG,
+                position: 150,
+                backgroundColor: Colors.teal,
+                textColor: '#FFFFFF',
+            });
+            setActivityItems(prev => [data, ...prev])
+        }
+    }
+
+    const handlePlaybackSync = async (data : any, isTrack: boolean) => {
+        if(isTrack === false) {
+            try {
+                if(data.status === null || data.status === "ACCEPTED") {
+                    if(data.interactionType === "PAUSE") {
+                        playerRef.current.pause();
+                    }else if(data.interactionType === "PLAY") {
+                        playerRef.current.play();
+                    }else if(data.interactionType === "JUMP") {
+                        playerRef.current.seekTo(data.duration);
+                    }
+                }
+            } catch (e) {
+                console.error("Lỗi khi điều khiển Player:", e);
+            }
+        }else {
+            if(data.title === null) {
+                if(data.currentSeekPosition) {
+                    playerRef.current.seekTo(data.currentSeekPosition)
+                }
+                if(data.playing){
+                    playerRef.current.play()
+                }else{
+                    playerRef.current.pause()
+                }
+            }else{
+                setCurrentTrack({
+                    id: data.id,
+                    title: data.title || '',
+                    thumbnailUrl: data.thumbnailUrl || '',
+                    duration: data.duration || 0,
+                    contributors: data.contributors || [],
+                    trackUrl: data.trackUrl || ''
+                }, true);
+            }
+        }
+    }
+
+    useEffect(() => {
+        if (!activeSession?.sessionId) return;
+        setActivityItems([]); // Xoá trắng thông báo khi vào phòng mới
+        const client = createStompClient();
+        client.onConnect = () => {
+            console.log("Connected to Jam:", activeSession.sessionId);
+            client.subscribe(`/jam/notification/${activeSession.sessionId}`, (msg) => {
+                try {
+                    const data = JSON.parse(msg.body);
+                    console.log("Receipt Messenger", data);
+                    handlePushNotification(data);
+                    handlePlaybackSync(data, false)
+                } catch (error) {
+                    console.error("❌ Lỗi Parse JSON:", error);
+                }
+            });
+            client.subscribe(`/jam/track/${activeSession.sessionId}`, (msg) => {
+                try {
+                    const data = JSON.parse(msg.body);
+                    console.log("Receipt Messenger Track", data);
+                    handlePlaybackSync(data, true);
+                }catch (error) {
+                    console.error("❌ Lỗi Parse JSON:", error);
+                }
+            })
+        };
+        client.activate();
+        stompClientRef.current = client;
+        return () => {
+            if (client) {
+                client.deactivate();
+            }
+        };
+    }, [activeSession?.sessionId]);
+
+    const openSheet = (sheet: typeof activeSheet) => {
+        setActiveSheet(sheet);
         dragY.setValue(0);
         Animated.parallel([
             Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, tension: 80, friction: 12 }),
@@ -122,448 +216,274 @@ function useBottomSheet(onClose: () => void) {
         ]).start();
     };
 
-    const close = (onDone?: () => void) => {
+    const closeSheet = () => {
         Animated.parallel([
             Animated.spring(slideAnim, { toValue: SHEET_HEIGHT, useNativeDriver: true, tension: 80, friction: 12 }),
             Animated.timing(overlayAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
-        ]).start(onDone);
-    };
-
-    const panResponder = useRef(
-        PanResponder.create({
-            onStartShouldSetPanResponder: () => true,
-            onMoveShouldSetPanResponder: (_, gs) => gs.dy > 5,
-            onPanResponderMove: (_, gs) => { if (gs.dy > 0) dragY.setValue(gs.dy); },
-            onPanResponderRelease: (_, gs) => {
-                if (gs.dy > 80 || gs.vy > 0.5) {
-                    Animated.parallel([
-                        Animated.timing(slideAnim, { toValue: SHEET_HEIGHT, duration: 200, useNativeDriver: true }),
-                        Animated.timing(overlayAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
-                    ]).start(onClose);
-                } else {
-                    Animated.spring(dragY, { toValue: 0, useNativeDriver: true, tension: 120, friction: 10 }).start();
-                }
-            },
-        })
-    ).current;
-
-    return { slideAnim, overlayAnim, dragY, panResponder, open, close };
-}
-
-export default function JamRoomScreen() {
-    const router = useRouter();
-    const { accessToken } = useAuth();
-    const { activeSession, clearActiveSession, isHydrated, setActiveSession } = useJam();
-    const { currentTrack, player, setCurrentTrack } = useCurrentTrack()!;
-    const status = useAudioPlayerStatus(player);
-    const isHost = Boolean(activeSession?.isHost);
-    
-    // UI States
-    const [activeSheet, setActiveSheet] = useState<BottomSheet>('none');
-    const [activityItems, setActivityItems] = useState<any[]>([]);
-    const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
-    const [privacyMode, setPrivacyMode] = useState(false);
-    const [maxPeople, setMaxPeople] = useState('04');
-    const [showPeoplePicker, setShowPeoplePicker] = useState(false);
-    const [inviteQuery, setInviteQuery] = useState('');
-    const [inviteResults, setInviteResults] = useState<MemberContentType[]>([]);
-    const [inviteLoading, setInviteLoading] = useState(false);
-    const [inviteSubmitting, setInviteSubmitting] = useState(false);
-    const [settingsSubmitting, setSettingsSubmitting] = useState(false);
-    const [finishSubmitting, setFinishSubmitting] = useState(false);
-
-    // Refs
-    const stompClientRef = useRef<any>(null);
-    const playerRef = useRef(player);
-    const currentTrackRef = useRef(currentTrack);
-    const memberIdRef = useRef<number | null>(null);
-
-    const { slideAnim, overlayAnim, dragY, panResponder, open, close } = useBottomSheet(() => setActiveSheet('none'));
-    const activeSessionKey = activeSession?.sessionId;
-    const activeSessionCode = activeSession?.sessionCode;
-
-    const copyToClipboard = async () => {
-        if (activeSessionCode) {
-            await Clipboard.setStringAsync(activeSessionCode.toString());
-                Toast.show('Code copied to clipboard!', {
-                duration: Toast.durations.SHORT,
-                position: Toast.positions.CENTER,
-                backgroundColor: Colors.teal,
-            });
-        }
-    };
-
-    // --- PLAYER PERSISTENCE ---
-    const persistPlayerState = useCallback(async (seekTimeOverride?: number) => {
-        const memberId = memberIdRef.current;
-        const trackId = currentTrackRef.current?.id;
-        if (!activeSessionKey || !memberId || !trackId) return;
-
-        try {
-            await savePlayerStateAPI({
-                currentSeekPosition: Math.max(0, Math.floor(seekTimeOverride ?? playerRef.current.currentTime ?? 0)),
-                trackId, memberId, playlistId: 0, albumId: 0,
-            });
-        } catch (error) { console.log('Persist failed:', error); }
-    }, [activeSessionKey]);
-
-    useEffect(() => { playerRef.current = player; }, [player]);
-    useEffect(() => { currentTrackRef.current = currentTrack; }, [currentTrack]);
-
-    useEffect(() => {
-        const hydrateMember = async () => {
-            const stored = await AsyncStorage.getItem('userId');
-            memberIdRef.current = parseStoredMemberId(stored);
-        };
-        hydrateMember();
-    }, []);
-
-    useEffect(() => {
-        if (activeSession) {
-            setPrivacyMode(Boolean(activeSession.isPrivate));
-            setMaxPeople(String(activeSession.size ?? 4).padStart(2, '0'));
-        }
-    }, [activeSession]);
-
-    // --- KẾT NỐI WEBSOCKET (LOGIC CỦA BACKEND BIÊN) ---
-    useEffect(() => {
-        if (!accessToken || !activeSessionKey) return;
-
-        const client = createStompClient(accessToken);
-        
-        client.onConnect = () => {
-            console.log("JamRoom: WebSocket Connected to", activeSessionKey);
-            
-            // Subscribe kênh thông báo từ Java: /jam/notification{id}
-            client.subscribe(`/jam/notification${activeSessionKey}`, (message) => {
-                const data = JSON.parse(message.body);
-
-                // 1. Toast notify
-                Toast.show(data.message, { duration: Toast.durations.SHORT, position: Toast.positions.TOP, backgroundColor: Colors.teal });
-
-                // 2. Activity list update
-                setActivityItems(prev => [{
-                    id: String(data.id || Date.now()),
-                    user: "", action: data.message, target: "",
-                    hasCheck: data.type === 'JAM_INTERACTION',
-                    time: 'just now',
-                }, ...prev].slice(0, 30));
-
-                // 3. Playback Sync
-                if (data.type === 'JAM_INTERACTION') {
-                    const syncedTrack = normalizeJamTrack(data.track);
-                    const syncedSeekTime = normalizeSeekTime(data.seekTime);
-
-                    const syncAction = async () => {
-                        if (syncedTrack && currentTrackRef.current?.id !== syncedTrack.id) {
-                            setCurrentTrack(syncedTrack);
-                            currentTrackRef.current = syncedTrack;
-                            await waitForTrackSync();
-                        }
-                        if (syncedSeekTime !== null) {
-                            try { await playerRef.current.seekTo(syncedSeekTime); } catch (e) {}
-                        }
-                        if (data.message.toLowerCase().includes("play")) playerRef.current.play();
-                        else if (data.message.toLowerCase().includes("pause")) playerRef.current.pause();
-                    };
-                    void syncAction();
-                }
-            });
-        };
-
-        client.activate();
-        stompClientRef.current = client;
-        return () => { if (stompClientRef.current) stompClientRef.current.deactivate(); };
-    }, [accessToken, activeSessionKey, setCurrentTrack]);
-
-    // --- SEARCH LOGIC (Dành cho Invite Sheet) ---
-    useEffect(() => {
-        if (activeSheet !== 'invite' || !inviteQuery.trim()) {
-            setInviteResults([]);
-            return;
-        }
-        const timer = setTimeout(async () => {
-            try {
-                setInviteLoading(true);
-                const res = await searchAPI({ keyword: inviteQuery.trim(), type: 'members', pageNumber: 1, pageSize: 12 });
-                setInviteResults(res.memberPreviewDTOS?.content ?? []);
-            } catch (e) { console.log(e); }
-            finally { setInviteLoading(false); }
-        }, 350);
-        return () => clearTimeout(timer);
-    }, [activeSheet, inviteQuery]);
-
-    // --- CONTROLS ---
-    const sendControl = (type: 'PLAY' | 'PAUSE' | 'SKIP' | 'PREVIOUS') => {
-        const seek = player.currentTime;
-        void persistPlayerState(seek);
-
-        if (stompClientRef.current?.connected && activeSessionKey) {
-            stompClientRef.current.publish({
-                destination: `/app/jam.control/${activeSessionKey}`,
-                body: JSON.stringify({
-                    interactionType: type,
-                    trackId: currentTrack?.id,
-                    jamJd: activeSession?.sessionId,
-                    duration: Math.floor(seek),
-                    notificationType: 'JAM_INTERACTION'
-                })
-            });
-        }
-    };
-
-    const handleTogglePlay = () => {
-        if (status.playing) { player.pause(); sendControl('PAUSE'); }
-        else { player.play(); sendControl('PLAY'); }
-    };
-
-    const handleSaveSettings = async () => {
-        if (!isHost || !activeSessionKey || settingsSubmitting) return;
-        try {
-            setSettingsSubmitting(true);
-            await updateJamSessionAPI(Number(activeSessionKey), Number(maxPeople), !privacyMode);
-            await setActiveSession({ ...activeSession!, size: Number(maxPeople), isPrivate: privacyMode });
-            Alert.alert('Success', 'Jam settings updated.');
-        } catch { Alert.alert('Error', 'Update failed.'); }
-        finally { setSettingsSubmitting(false); }
-    };
-
-    const handleSendInvites = async () => {
-        if (!isHost || !activeSessionKey || inviteSubmitting) return;
-        const ids = [...invitedIds].map(Number);
-        if (!ids.length) return Alert.alert('Error', 'Select a member.');
-        try {
-            setInviteSubmitting(true);
-            await inviteFriendsAPI(Number(activeSessionKey), ids);
-            Alert.alert('Sent', 'Invitations sent.');
-            setInvitedIds(new Set());
-        } catch { Alert.alert('Error', 'Invite failed.'); }
-        finally { setInviteSubmitting(false); }
+        ]).start(() => setActiveSheet('none'));
     };
 
     const handleFinishJam = async () => {
-        if (finishSubmitting) return;
         try {
-            setFinishSubmitting(true);
-            if (isHost) await deleteJamSessionAPI(Number(activeSessionKey));
-            else await leaveJamSessionAPI({ jamSessionId: Number(activeSessionKey) });
-            await clearActiveSession();
-            close(() => setActiveSheet('none'));
-            router.navigate('/jam' as any);
-        } catch { Alert.alert('Error', 'Action failed.'); }
-        finally { setFinishSubmitting(false); }
+            setSubmitting(true);
+            if (isHost) await deleteJamSessionAPI(Number(activeSession?.sessionId));
+            else await leaveJamSessionAPI({ jamSessionId: Number(activeSession?.sessionId) });
+            clearActiveSession();
+            closeSheet();
+            router.replace('/(tabs)/jam');
+        } catch (e) {
+            Toast.show('Failed to leave Jam');
+        } finally {
+            setSubmitting(false);
+        }
     };
 
-    const openSheet = (sheet: BottomSheet) => { setActiveSheet(sheet); open(); };
-    const closeSheet = () => close(() => setActiveSheet('none'));
-    
-    if (!isHydrated || !activeSessionKey) return (
-        <SafeAreaView style={styles.safeArea}><ActivityIndicator color={Colors.teal} size="large" style={{flex:1}}/></SafeAreaView>
-    );
+    const handleSaveSettings = async () => {
+        if (!activeSession?.sessionId) return;
+        setSubmitting(true);
+        try {
+            await updateJamSessionAPI({
+                jamSessionId: activeSession.sessionId,
+                size: parseInt(maxPeople, 10),
+                isPublic: !privacyMode
+            });
+            Toast.show('Settings updated successfully', {
+                position: Toast.positions.CENTER,
+                backgroundColor: Colors.teal
+            });
+            closeSheet();
+        } catch (error) {
+            console.error("Lỗi khi update jam:", error);
+            Toast.show('Failed to update settings', {
+                position: Toast.positions.CENTER,
+                backgroundColor: '#FF5555'
+            });
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
-    const progressPercent = player.duration > 0 ? (player.currentTime / player.duration) : 0;
-    const formatTime = (s: number) => `${Math.floor(s / 60)}:${(Math.floor(s % 60)).toString().padStart(2, '0')}`;
-    const roomLabel = activeSession?.sessionCode || `Room #${activeSessionKey}`;
+    const handlePlayPause = () => {
+        const isPlaying = status.playing;
+        if (isHost) {
+            if (stompClientRef.current?.connected && activeSession?.sessionId) {
+                const dest = `/app/jam/notification`;
+                const payload = {
+                    jamId: activeSession.sessionId,
+                    trackId: currentTrack?.id,
+                    notificationType: "JAM_INTERACTION",
+                    interactionType: isPlaying ? "PAUSE" : "PLAY",
+                };
+                stompClientRef.current.publish({ destination: dest, body: JSON.stringify(payload) });
+            }
+        }
+        if(!isHost) {
+            if (stompClientRef.current?.connected && activeSession?.sessionId) {
+                stompClientRef.current.publish({
+                    destination: '/app/jam/notification',
+                    body: JSON.stringify({
+                        jamId: activeSession.sessionId,
+                        trackId: currentTrack?.id,
+                        notificationType: "JAM_INTERACTION",
+                        interactionType: isPlaying? "PAUSE" : "PLAY",
+                    })
+                })
+            Alert.alert("Request sent. Awaiting host approval");
+            }
+        }
+    };
+
+    const handleJump = (seconds: number) => {
+        if (stompClientRef.current?.connected && activeSession) {
+            const payload = {
+                jamId: activeSession.sessionId,
+                trackId: currentTrack?.id,
+                notificationType: "JAM_INTERACTION",
+                interactionType: "JUMP", 
+                duration: Math.floor(seconds),
+            };
+            stompClientRef.current.publish({
+                destination: '/app/jam/notification',
+                body: JSON.stringify(payload)
+            });
+            if(!isHost){
+                Alert.alert("Request sent. Awaiting host approval");
+            }
+        }
+    };
+
+    const handleApproveRequest = async (notification : any) => {
+        console.log("handleApproveRequest");
+        if (activeSession && currentTrack) {
+            const request : acceptNotificationRequestDTO= {
+                jamId: activeSession.sessionId,
+                jamNotificationId: notification.jamNotificationId || notification.id,
+                trackId: notification.trackId ? notification.trackId : currentTrackRef.current?.id,
+                interactionType: notification.interactionType ? notification.interactionType : currentTrackRef.current?.id,
+                seekPosition: notification.duration ? notification.duration : Math.round(player.currentTime)
+            };
+            console.log("REQUEST APPROVEREQUESt FROM JAMROOM: ", request);
+            const res = await acceptNotification(request);
+            console.log("RESPONSE APPROVERESPONSE FROM JAMROOM", res.config.data);
+            
+            setActivityItems(prev => prev.map(item => 
+                (item === notification || item.jamNotificationId === notification.jamNotificationId || (item.id && item.id === notification.id))
+                ? { ...item, status: 'ACCEPTED' } 
+                : item
+            ));
+        }
+    };
+ 
+    const duration = status.duration > 0 ? status.duration : 1;
+    const displayPosition = isSeeking ? seekValue : status.currentTime;
+    const formatTime = (s: number) => {
+        if (!s || isNaN(s)) return "0:00";
+        const m = Math.floor(s / 60);
+        const sec = Math.floor(s % 60);
+        return `${m}:${sec.toString().padStart(2, '0')}`;
+    };
+
+    if (!isHydrated || !activeSession?.sessionId) {
+        return <View style={styles.loader}><ActivityIndicator color={Colors.teal} size="large" /></View>;
+    }
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <StatusBar barStyle="light-content" backgroundColor="#000" />
+            <StatusBar barStyle="light-content" />
 
             {/* HEADER */}
             <View style={styles.header}>
-                <View style={styles.headerIcon}><Ionicons name="people" size={20} color={Colors.teal} /></View>
+                <View style={styles.headerIcon}><Ionicons name="people" size={24} color={Colors.teal} /></View>
                 <View style={{ flex: 1 }}>
                     <Text style={styles.headerTitle}>Live Jam Session</Text>
-                    <Text style={styles.headerSub}>{isHost ? 'Hosting' : 'Joined'} {roomLabel} • Max {activeSession?.size || maxPeople}</Text>
-                </View>
-                {status.playing && <PlayingAnimation />}
-            </View>
-
-            {/* AVATARS & ACTION ICONS */}
-            <View style={styles.actionRow}>
-                <View style={styles.avatarsGroup}>
-                    {avatarColors.map((color, i) => (
-                        <View key={i} style={[styles.memberAvatar, { backgroundColor: color, marginLeft: i > 0 ? -10 : 0 }]} />
-                    ))}
-                </View>
-                <View style={styles.iconsGroup}>
-                    <TouchableOpacity style={styles.iconBtn} onPress={() => openSheet('invite')}><Ionicons name="person-add-outline" size={20} color={Colors.teal} /></TouchableOpacity>
-                    <TouchableOpacity style={styles.iconBtn} onPress={() => openSheet('notification')}><Ionicons name="notifications-outline" size={20} color={Colors.teal} /></TouchableOpacity>
-                    <TouchableOpacity style={styles.iconBtn} onPress={() => openSheet('settings')}><Ionicons name="settings-outline" size={20} color={Colors.teal} /></TouchableOpacity>
+                    <Text style={styles.headerSub}>
+                        {privacyMode ? 'Private' : 'Public'} • Max {parseInt(maxPeople, 10)} members
+                    </Text>
                 </View>
             </View>
 
-            {/* ALBUM ART */}
+            {/* AVATARS & TOP CONTROLS */}
+            <View style={styles.topControlsRow}>
+                <View style={styles.avatarsContainer}>
+                    <View style={[styles.avatarCircle, { backgroundColor: '#FFFFFF', zIndex: 3 }]} />
+                    <View style={[styles.avatarCircle, { backgroundColor: '#FDF6D5', zIndex: 2, marginLeft: -12 }]} />
+                    <View style={[styles.avatarCircle, { backgroundColor: '#47225A', zIndex: 1, marginLeft: -12 }]} />
+                </View>
+                <View style={styles.topIcons}>
+                    <TouchableOpacity onPress={() => openSheet('invite')} style={styles.smallIconBtn}>
+                         <Ionicons name="person-add-outline" size={24} color={Colors.teal} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => openSheet('notification')} style={styles.smallIconBtn}>
+                         <Ionicons name="notifications-outline" size={24} color={Colors.teal} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => openSheet('settings')} style={styles.smallIconBtn}>
+                         <Ionicons name="settings-outline" size={24} color={Colors.teal} />
+                    </TouchableOpacity>
+                </View>
+            </View>
+
+            {/* MAIN PLAYER UI */}
             <View style={styles.albumSection}>
-                <View style={[styles.albumArt, { borderColor: status.playing ? Colors.teal : '#2A2A2A', borderWidth: 2 }]}>
+                <View style={styles.albumArt}>
                     {currentTrack?.thumbnailUrl ? (
-                        <Image source={{ uri: currentTrack.thumbnailUrl }} style={{ width: '100%', height: '100%', borderRadius: ALBUM_SIZE / 2 }} />
+                        <Image source={{ uri: currentTrack.thumbnailUrl }} style={styles.fullImg} />
                     ) : (
-                        <Ionicons name="musical-notes" size={64} color="#555" />
+                        <Ionicons name="musical-notes" size={64} color="#333" />
                     )}
                 </View>
             </View>
 
-            {/* SONG INFO */}
-            <View style={styles.songInfo}>
-                <Text style={styles.songTitle} numberOfLines={1}>{currentTrack?.title || "No track playing"}</Text>
-                <Text style={styles.artistName}>{currentTrack?.contributors?.[0]?.name || "VibeSync"}</Text>
+            <View style={styles.songInfoContainer}>
+                 <View style={styles.songInfoText}>
+                     <Text style={styles.songTitle} numberOfLines={1}>{currentTrack?.title || "No track playing"}</Text>
+                     <Text style={styles.artistName}>{currentTrack?.contributors?.[0]?.name || "VibeSync"}</Text>
+                 </View>
+                 <TouchableOpacity style={styles.playlistIcon}>
+                     <Ionicons name="options-outline" size={24} color="#FFF" />
+                 </TouchableOpacity>
             </View>
 
             {/* PROGRESS */}
-            <View style={styles.progressContainer}>
-                <View style={styles.progressTrack}>
-                    <View style={[styles.progressFill, { width: `${progressPercent * 100}%` }]} />
-                    <View style={[styles.progressThumb, { left: `${progressPercent * 100}%` }]} />
-                </View>
+            <View style={styles.sliderContainer}>
+                <Slider
+                    style={styles.slider}
+                    minimumValue={0}
+                    maximumValue={duration}
+                    value={displayPosition}
+                    minimumTrackTintColor={Colors.teal}
+                    maximumTrackTintColor="#333"
+                    thumbTintColor={Colors.white}
+                    onSlidingStart={() => setIsSeeking(true)}
+                    onValueChange={(v) => setSeekValue(v)}
+                    onSlidingComplete={(v) => { 
+                        setIsSeeking(false); 
+                        handleJump(v)
+                    }}
+                />
                 <View style={styles.timeRow}>
-                    <Text style={styles.timeText}>{formatTime(player.currentTime)}</Text>
-                    <Text style={styles.timeText}>{formatTime(player.duration)}</Text>
+                    <Text style={styles.timeText}>{formatTime(displayPosition)}</Text>
+                    <Text style={styles.timeText}>{formatTime(duration)}</Text>
                 </View>
             </View>
 
-            {/* CONTROLS */}
-            <View style={styles.controls}>
-                <TouchableOpacity><Ionicons name="shuffle" size={26} color={Colors.gray} /></TouchableOpacity>
-                <TouchableOpacity onPress={() => sendControl('PREVIOUS')}><Ionicons name="play-skip-back" size={30} color={Colors.white} /></TouchableOpacity>
-                <TouchableOpacity style={styles.playBtn} onPress={handleTogglePlay}>
-                    <Ionicons name={status.playing ? 'pause' : 'play'} size={32} color={Colors.white} />
+            {/* PLAYBACK CONTROLS */}
+            <View style={styles.playbackControls}>
+                <TouchableOpacity><Ionicons name="shuffle" size={24} color="#FFF" /></TouchableOpacity>
+                <TouchableOpacity><Ionicons name="play-skip-back" size={32} color="#FFF" /></TouchableOpacity>
+                <TouchableOpacity style={styles.playBtn} onPress={handlePlayPause}>
+                    <Ionicons name={status.playing ? 'pause' : 'play'} size={32} color="#000" />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => sendControl('SKIP')}><Ionicons name="play-skip-forward" size={30} color={Colors.white} /></TouchableOpacity>
-                <TouchableOpacity><Ionicons name="repeat" size={26} color={Colors.gray} /></TouchableOpacity>
+                <TouchableOpacity><Ionicons name="play-skip-forward" size={32} color="#FFF" /></TouchableOpacity>
+                <TouchableOpacity><Ionicons name="repeat" size={24} color="#FFF" /></TouchableOpacity>
             </View>
 
             {/* BOTTOM SHEETS */}
             {activeSheet !== 'none' && (
                 <>
-                    <TouchableWithoutFeedback onPress={closeSheet}><Animated.View style={[styles.overlay, { opacity: overlayAnim }]} /></TouchableWithoutFeedback>
+                    <TouchableWithoutFeedback onPress={closeSheet}>
+                        <Animated.View style={[styles.overlay, { opacity: overlayAnim }]} />
+                    </TouchableWithoutFeedback>
                     <Animated.View style={[styles.sheet, { transform: [{ translateY: Animated.add(slideAnim, dragY) }] }]}>
-                        <View style={styles.sheetHeader} {...panResponder.panHandlers}><View style={styles.dragHandle} /></View>
+                        <View style={styles.sheetHeader}><View style={styles.dragHandle} /></View>
                         
-                       {activeSheet === 'invite' && (
-                            <>
-                                <Text style={styles.sheetTitle}>Invite members to your Jam</Text>
-                                
-                                {/* Ô hiển thị Code mới: Đẹp và gọn hơn */}
-                                <TouchableOpacity 
-                                    style={styles.codeContainer} 
-                                    onPress={copyToClipboard}
-                                    activeOpacity={0.7}
-                                >
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.codeLabel}>JAM CODE (Tap to copy)</Text>
-                                        <Text style={styles.codeValue} numberOfLines={1} ellipsizeMode="middle">
-                                            {activeSessionKey}
-                                        </Text>
-                                    </View>
-                                    <Ionicons name="copy-outline" size={20} color={Colors.teal} />
-                                </TouchableOpacity>
-
-                                {!isHost ? (
-                                    <Text style={styles.helperText}>Only the host can send invitations.</Text>
-                                ) : (
-                                    <>
-                                        <View style={styles.searchWrapper}>
-                                            <Ionicons name="search" size={18} color={Colors.gray} style={{marginLeft: 12}} />
-                                            <TextInput 
-                                                style={styles.inviteSearchInput} 
-                                                placeholder="Search members..." 
-                                                placeholderTextColor={Colors.gray} 
-                                                value={inviteQuery} 
-                                                onChangeText={setInviteQuery} 
-                                            />
-                                        </View>
-
-                                        {inviteLoading ? (
-                                            <ActivityIndicator color={Colors.teal} style={{ margin: 20 }} />
-                                        ) : (
-                                            <FlatList
-                                                data={inviteResults}
-                                                keyExtractor={item => item.id.toString()}
-                                                renderItem={({ item }) => {
-                                                    const sel = invitedIds.has(item.id.toString());
-                                                    return (
-                                                        <View style={styles.memberRow}>
-                                                            <View style={styles.memberSearchAvatarPlaceholder}>
-                                                                {item.avatarUrl ? (
-                                                                    <Image source={{ uri: item.avatarUrl }} style={styles.fullImg} />
-                                                                ) : (
-                                                                    <Ionicons name="person" size={20} color="#666" />
-                                                                )}
-                                                            </View>
-                                                            <View style={styles.memberMeta}>
-                                                                <Text style={styles.friendName}>{item.name}</Text>
-                                                                <Text style={styles.memberMetaText}>{item.friendStatus === 'ACCEPTED' ? 'Friend' : 'Member'}</Text>
-                                                            </View>
-                                                            <TouchableOpacity 
-                                                                style={[styles.inviteBtn, sel && styles.invitedBtn]} 
-                                                                onPress={() => {
-                                                                    const next = new Set(invitedIds);
-                                                                    sel ? next.delete(item.id.toString()) : next.add(item.id.toString());
-                                                                    setInvitedIds(next);
-                                                                }}
-                                                            >
-                                                                <Text style={[styles.inviteBtnText, sel && { color: '#FFF' }]}>
-                                                                    {sel ? 'Selected' : 'Invite'}
-                                                                </Text>
-                                                            </TouchableOpacity>
-                                                        </View>
-                                                    );
-                                                }}
-                                                style={{ maxHeight: height * 0.25 }} // Giới hạn chiều cao list để không đè nút Send
-                                            />
-                                        )}
-                                        <TouchableOpacity 
-                                            style={[styles.primarySheetBtn, (!invitedIds.size || inviteSubmitting) && { opacity: 0.5 }]} 
-                                            onPress={handleSendInvites} 
-                                            disabled={!invitedIds.size || inviteSubmitting}
-                                        >
-                                            <Text style={styles.primarySheetBtnText}>Send Invites</Text>
-                                        </TouchableOpacity>
-                                    </>
-                                )}
-                            </>
+                        {activeSheet === 'invite' && (
+                            <JamInviteSheet 
+                                jamId={activeSession.sessionId.toString()}
+                                sessionCode={activeSession.sessionCode}
+                                isHost={isHost}
+                                query={inviteQuery}
+                                setQuery={setInviteQuery}
+                                loading={inviteLoading}
+                                results={inviteResults}
+                                invitedIds={invitedIds}
+                                setInvitedIds={setInvitedIds}
+                                onSendInvites={() => {}} 
+                                onSearch={handleSearchInvites}
+                            />
                         )}
 
                         {activeSheet === 'notification' && (
-                            <>
-                                <Text style={styles.sheetTitle}>Jam Activity</Text>
-                                <FlatList data={activityItems} keyExtractor={item => item.id} renderItem={({ item }) => (
-                                    <View style={styles.notifItem}>
-                                        <View style={styles.notifAvatar} />
-                                        <View style={styles.notifText}>
-                                            <Text style={styles.notifBody}>{item.action}</Text>
-                                            <Text style={styles.notifTime}>{item.time}</Text>
-                                        </View>
-                                        {item.hasCheck && <Ionicons name="checkmark-circle" size={20} color={Colors.teal} />}
-                                    </View>
-                                )} ListEmptyComponent={<Text style={styles.helperText}>No activity yet.</Text>} />
-                            </>
+                            <JamNotificationSheet 
+                                isHost={isHost}
+                                activityItems={activityItems}
+                                onApprove={handleApproveRequest}
+                            />
                         )}
 
                         {activeSheet === 'settings' && (
-                            <View>
-                                <Text style={styles.sheetTitle}>Jam Settings</Text>
-                                <View style={styles.settingRow}>
-                                    <View style={styles.settingLeft}><Text style={styles.settingLabel}>Privacy Mode</Text></View>
-                                    <Switch value={privacyMode} onValueChange={setPrivacyMode} disabled={!isHost} />
-                                </View>
-                                <TouchableOpacity style={styles.settingRow} onPress={() => isHost && setShowPeoplePicker(!showPeoplePicker)}>
-                                    <Text style={styles.settingLabel}>Max People</Text>
-                                    <Text style={{color:Colors.teal}}>{maxPeople}</Text>
-                                </TouchableOpacity>
-                                {showPeoplePicker && (
-                                    <View style={styles.pickerDropdown}>
-                                        {peopleCounts.map(c => (
-                                            <TouchableOpacity key={c} style={styles.pickerOption} onPress={() => {setMaxPeople(c); setShowPeoplePicker(false)}}>
-                                                <Text style={{color:'#FFF'}}>{c}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
-                                )}
-                                {isHost && <TouchableOpacity style={styles.primarySheetBtn} onPress={handleSaveSettings}><Text style={styles.primarySheetBtnText}>Save Changes</Text></TouchableOpacity>}
-                                <TouchableOpacity style={styles.finishBtn} onPress={handleFinishJam}><Text style={styles.finishText}>{isHost ? 'End Jam' : 'Leave Jam'}</Text></TouchableOpacity>
-                            </View>
+                            <JamSettingsSheet 
+                                isHost={isHost}
+                                privacyMode={privacyMode}
+                                setPrivacyMode={setPrivacyMode}
+                                maxPeople={maxPeople}
+                                showPeoplePicker={showPeoplePicker}
+                                onShowPicker={() => setShowPeoplePicker(!showPeoplePicker)}
+                                onSelectPeople={(c: string) => { setMaxPeople(c); setShowPeoplePicker(false); }}
+                                onSave={handleSaveSettings}
+                                onFinish={handleFinishJam}
+                                submitting={submitting}
+                                peopleCounts={['02', '04', '06', '08', '10']}
+                            />
                         )}
                     </Animated.View>
                 </>
@@ -573,123 +493,33 @@ export default function JamRoomScreen() {
 }
 
 const styles = StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: '#000', paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0, paddingBottom: 32 },
-    header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 14, paddingBottom: 12, gap: 12 },
-    headerIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#0F2D24', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.teal },
-    headerTitle: { fontSize: 16, fontWeight: '700', color: Colors.white },
-    headerSub: { fontSize: 12, color: Colors.gray, marginTop: 2 },
-    actionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 4, marginBottom: 4 },
-    avatarsGroup: { flexDirection: 'row', alignItems: 'center' },
-    memberAvatar: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: '#000' },
-    iconsGroup: { flexDirection: 'row', gap: 8 },
-    iconBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center' },
+    safeArea: { flex: 1, backgroundColor: '#090909' },
+    loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#090909' },
+    header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 15, gap: 12 },
+    headerIcon: { width: 48, height: 48, borderRadius: 12, backgroundColor: '#0F2D24', alignItems: 'center', justifyContent: 'center' },
+    headerTitle: { fontSize: 18, fontWeight: '800', color: '#FFF', marginBottom: 2 },
+    headerSub: { fontSize: 12, color: '#A0A0A0', fontWeight: '600' },
+    topControlsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 25, marginBottom: 15 },
+    avatarsContainer: { flexDirection: 'row', alignItems: 'center' },
+    avatarCircle: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, borderColor: '#090909' },
+    topIcons: { flexDirection: 'row', gap: 15 },
+    smallIconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
     albumSection: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    albumArt: { width: ALBUM_SIZE, height: ALBUM_SIZE, borderRadius: ALBUM_SIZE / 2, backgroundColor: '#1E1E1E', alignItems: 'center', justifyContent: 'center' },
-    songInfo: { alignItems: 'center', marginBottom: 6, paddingHorizontal: 20 },
-    songTitle: { fontSize: 20, fontWeight: '800', color: Colors.white, marginBottom: 4 },
-    artistName: { fontSize: 14, color: Colors.gray },
-    queueRow: { alignItems: 'flex-end', paddingHorizontal: 24, marginBottom: 10 },
-    progressContainer: { paddingHorizontal: 24, gap: 8, marginBottom: 18 },
-    progressTrack: { height: 3, backgroundColor: '#333', borderRadius: 2, position: 'relative', justifyContent: 'center' },
-    progressFill: { height: '100%', backgroundColor: Colors.teal, borderRadius: 2 },
-    progressThumb: { position: 'absolute', width: 12, height: 12, borderRadius: 6, backgroundColor: Colors.white, top: -4.5, marginLeft: -6 },
-    timeRow: { flexDirection: 'row', justifyContent: 'space-between' },
-    timeText: { fontSize: 12, color: Colors.gray },
-    controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, marginBottom: 20 },
-    playBtn: { width: 62, height: 62, borderRadius: 31, backgroundColor: Colors.teal, alignItems: 'center', justifyContent: 'center', elevation: 8 },
-    overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.75)' },
-    sheet: { position: 'absolute', bottom: 0, left: 0, right: 0, height: SHEET_HEIGHT, backgroundColor: '#111', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 20, paddingBottom: 16 },
-    sheetHeader: { width: '100%', alignItems: 'center', paddingBottom: 8 },
-    dragHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#333', marginTop: 12, marginBottom: 6 },
-    sheetTitle: { fontSize: 16, fontWeight: '800', color: Colors.white, textAlign: 'center', marginBottom: 16 },
-    codeBtn: { backgroundColor: Colors.teal, borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginBottom: 18 },
-    codeBtnText: { fontSize: 16, fontWeight: '800', color: Colors.white },
-    searchInput: { height: 48, borderRadius: 12, backgroundColor: '#1A1A1A', paddingHorizontal: 14, color: '#FFF', marginBottom: 14 },
-    memberRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
-    memberSearchAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#2A2A2A' },
-    memberMeta: { flex: 1 },
-    friendName: { color: '#FFF', fontWeight: '600' },
-    memberMetaText: { color: '#888', fontSize: 12 },
-    inviteBtn: { paddingHorizontal: 15, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: Colors.teal },
-    invitedBtn: { backgroundColor: Colors.teal },
-    inviteBtnText: { color: Colors.teal, fontWeight: '700' },
-    primarySheetBtn: { height: 48, borderRadius: 12, backgroundColor: Colors.teal, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
-    primarySheetBtnText: { color: '#FFF', fontWeight: '700' },
-    notifItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12 },
-    notifAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#2A2A2A' },
-    notifText: { flex: 1 },
-    notifBody: { color: '#FFF' },
-    notifTime: { color: '#888', fontSize: 11 },
-    settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 15 },
-    settingLabel: { color: '#FFF', fontWeight: '600' },
-    pickerDropdown: { backgroundColor: '#1A1A1A', borderRadius: 10, padding: 10 },
-    pickerOption: { padding: 10 },
-    finishBtn: { height: 50, borderRadius: 12, backgroundColor: '#222', alignItems: 'center', justifyContent: 'center', marginTop: 20 },
-    finishText: { color: '#FFF', fontWeight: '700' },
-    eqContainer: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 20 },
-    eqBar: { width: 3, backgroundColor: Colors.teal, borderRadius: 1 },
-    helperText: {
-        color: Colors.gray,
-        textAlign: 'center',
-        paddingVertical: 20,
-        fontSize: 14,
-        lineHeight: 20,
-    },
-    settingLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    codeContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#1A1A1A',
-        borderRadius: 12,
-        padding: 15,
-        marginBottom: 20,
-        borderWidth: 1,
-        borderColor: '#333',
-        borderStyle: 'dashed',
-    },
-    codeLabel: {
-        fontSize: 10,
-        color: Colors.teal,
-        fontWeight: '800',
-        marginBottom: 4,
-        letterSpacing: 1,
-    },
-    codeValue: {
-        fontSize: 15,
-        color: '#FFF',
-        fontWeight: '700',
-        fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', // Nhìn giống mã code hơn
-    },
-    // Thanh Search mới
-    searchWrapper: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#1A1A1A',
-        borderRadius: 10,
-        marginBottom: 15,
-    },
-    inviteSearchInput: {
-        flex: 1,
-        height: 45,
-        paddingHorizontal: 10,
-        color: '#FFF',
-        fontSize: 14,
-    },
-    memberSearchAvatarPlaceholder: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: '#222',
-        justifyContent: 'center',
-        alignItems: 'center',
-        overflow: 'hidden'
-    },
-    fullImg: {
-        width: '100%',
-        height: '100%',
-    }
+    albumArt: { width: ALBUM_SIZE, height: ALBUM_SIZE, borderRadius: ALBUM_SIZE / 2, backgroundColor: '#F0F0F0', overflow: 'hidden', justifyContent: 'center', alignItems: 'center', borderWidth: 4, borderColor: Colors.teal },
+    fullImg: { width: '100%', height: '100%' },
+    songInfoContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 30, marginBottom: 25 },
+    songInfoText: { flex: 1, alignItems: 'center' },
+    songTitle: { fontSize: 20, fontWeight: '800', color: '#FFF', marginBottom: 4 },
+    artistName: { fontSize: 14, color: '#A0A0A0' },
+    playlistIcon: { position: 'absolute', right: 30, top: '25%' },
+    sliderContainer: { marginBottom: 30 },
+    slider: { width: width - 40, alignSelf: 'center', height: 40 },
+    timeRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 30, marginTop: -5 },
+    timeText: { fontSize: 11, color: '#777', fontWeight: 'bold' },
+    playbackControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 25, marginBottom: 40 },
+    playBtn: { width: 64, height: 64, borderRadius: 32, backgroundColor: Colors.teal, alignItems: 'center', justifyContent: 'center' },
+    overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 100, elevation: 10 },
+    sheet: { position: 'absolute', bottom: 0, left: 0, right: 0, height: SHEET_HEIGHT, backgroundColor: '#111', borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 20, paddingBottom: 20, zIndex: 101, elevation: 11 },
+    sheetHeader: { width: '100%', alignItems: 'center', paddingVertical: 15 },
+    dragHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#333' }
 });

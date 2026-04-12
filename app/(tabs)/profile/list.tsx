@@ -109,6 +109,11 @@ export default function PlaylistDetailScreen() {
     const [inviteResults, setInviteResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
 
+    const playerContext = usePlayer(); 
+    const lastActiveTab = playerContext ? playerContext.lastActiveTab : 'home';
+
+    
+
     const loadDetail = useCallback(async () => {
         if (!id) return;
         try {
@@ -230,7 +235,6 @@ export default function PlaylistDetailScreen() {
 
     const allMembers = [detail.owner, ...(detail.collaborators || [])].filter(Boolean);
 
-    const { lastActiveTab } = usePlayer();
     const handleClose = () => {
         const tab = lastActiveTab || 'home';
         router.replace(`/(tabs)/${tab}` as any);
