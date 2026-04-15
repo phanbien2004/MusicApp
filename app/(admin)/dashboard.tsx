@@ -1,13 +1,13 @@
 import { Colors } from '@/constants/theme'; // Đảm bảo bạn có file theme này
+import { useAuth } from '@/context/auth-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function AdminDashboard() {
     const router = useRouter();
-
+    const { logout } = useAuth();
     const menuItems = [
         {
             title: 'ARTIST VERIFICATION',
@@ -22,12 +22,23 @@ export default function AdminDashboard() {
             route: '/(admin)/track-review',
         },
         {
+            title: 'ALBUM REVIEW',
+            subtitle: 'VIEW PENDING ALBUMS',
+            icon: 'albums-outline',
+            route: '/(admin)/album-review',
+        },
+        {
             title: 'TAG MANAGER',
             subtitle: '',
             icon: 'pricetag-outline',
             route: '/(admin)/tag-manager',
         },
     ];
+
+    const handleLogout = async () => {
+        await logout();
+        router.replace('/login' as any);
+    }
 
     return (
         <SafeAreaView style={styles.container}>
@@ -66,10 +77,8 @@ export default function AdminDashboard() {
                 {/* Nút Đăng xuất cho Admin */}
                 <TouchableOpacity 
                     style={styles.logoutBtn} 
-                    onPress={async () => {
-                        await AsyncStorage.removeItem('accessToken');
-                        await AsyncStorage.removeItem('refreshToken');
-                        router.replace('/login');
+                    onPress={ () => {
+                        handleLogout();
                     }}
                 >
                     <Text style={styles.logoutText}>Exit Admin Mode</Text>

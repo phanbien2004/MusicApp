@@ -1,6 +1,5 @@
 import apiClient from "@/api/apiClient";
 import { BASE_URL } from "@/constants/baseURL";
-import * as FileSystem from 'expo-file-system';
 import { File } from 'expo-file-system';
 import { fetch } from "expo/fetch";
 

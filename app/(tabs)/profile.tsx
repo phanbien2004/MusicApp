@@ -15,9 +15,11 @@ import {
     View,
 } from 'react-native';
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getProfileAPI, ProfileResponse } from '@/services/profileService';
+import { IMAGE } from '@/constants/image';
+import { PlayList } from '@/services/listService';
 import { getMySubscriptionAPI } from '@/services/paymentService';
+import { getProfileAPI, ProfileResponse } from '@/services/profileService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
@@ -28,6 +30,7 @@ export default function ProfileScreen() {
     const router = useRouter();
     const [profileData, setProfileData] = useState<ProfileResponse | null>(null);
     const [playlists, setPlaylists] = useState<PlayList[] | null>(null);
+    const [isPremium, setIsPremium] = useState(false);
 
     const fetchProfileData = useCallback(async () => {
         try {
@@ -40,10 +43,10 @@ export default function ProfileScreen() {
                 getMySubscriptionAPI().then(subscription => {
                      // Kiểm tra nếu isActive là true và nó là PREMIUM
                      setIsPremium(subscription?.isActive || false);
-                }).catch(e => console.log("Lỗi tải gói premium: ", e?.message));
+                }).catch(e => console.log("Error loading premium plan: ", e?.message));
             }
         } catch (error) {
-            console.error("Lỗi khi lấy profile chung:", error);
+            console.error("Error fetching general profile:", error);
         }
     }, []);
 
@@ -179,9 +182,7 @@ export default function ProfileScreen() {
                             {item.thumbnailUrl ? (
                                 <Image source={{ uri: item.thumbnailUrl }} style={styles.playlistThumb} />
                             ) : (
-                                <View style={[styles.playlistThumb, { backgroundColor: Colors.teal, justifyContent: 'center', alignItems: 'center' }]}>
-                                    <Ionicons name="musical-notes" size={30} color="rgba(255,255,255,0.5)" />
-                                </View>
+                                <Image source={IMAGE.defaultThumbnail} style={styles.playlistThumb} />
                             )}
                             <Text style={styles.playlistName} numberOfLines={1}>{item.title}</Text>
                         </TouchableOpacity>
@@ -226,6 +227,6 @@ const styles = StyleSheet.create({
     addBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#2A2A2A' },
     playlistsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 16 },
     playlistCard: { width: PLAYLIST_CARD_WIDTH, gap: 10 },
-    playlistThumb: { width: '100%', aspectRatio: 1, borderRadius: 14, borderWidth: 1, borderColor: '#2A2A2A', overflow: 'hidden' },
+    playlistThumb: { width: '100%', height: 180, borderRadius: 14, borderWidth: 1, borderColor: '#2A2A2A', overflow: 'hidden' },
     playlistName: { fontSize: 14, fontWeight: '600', color: Colors.white, paddingLeft: 4 },
 });

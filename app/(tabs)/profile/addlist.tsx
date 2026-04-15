@@ -1,31 +1,34 @@
 import { Colors } from "@/constants/theme";
 import { createPlayListAPI } from "@/services/listService";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router"; // Thêm router để nút X có tác dụng
+import { useRouter } from "expo-router"; 
+import { usePlayer } from "@/context/player-context";
 import React from "react";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-const handleTouchCreatePlaylist = async (playlistName: string) => {
-    const res = await createPlayListAPI(playlistName);
-}
-
 export default function AddListScreen() {
     const router = useRouter();
+    const { lastActiveTab } = usePlayer();
     const [playlistName, setPlaylistName] = React.useState("");
 
+    const handleClose = () => {
+        const tab = lastActiveTab || 'home';
+        router.navigate(`/(tabs)/${tab}` as any);
+    }
+
     const handleTouchCreate = async () => {
+        if (!playlistName.trim()) return;
         const res = await createPlayListAPI(playlistName);
         if(res) {
-            router.back();
+            handleClose();
         }
     }
 
     return (
         <View style={styles.container}>
-            {/* Đưa icon vào TouchableOpacity để có thể bấm được */}
             <TouchableOpacity
                 style={styles.closeButton}
-                onPress={() => router.back()} // Quay lại màn hình trước
+                onPress={handleClose} 
             >
                 <Ionicons name="close" size={28} color={Colors.white} />
             </TouchableOpacity>
@@ -37,8 +40,7 @@ export default function AddListScreen() {
                 placeholder="Enter playlist name"
                 placeholderTextColor="#888"
                 value={playlistName}
-                onChangeText={setPlaylistName}
-                autoFocus={true} // Tự động hiện bàn phím khi vào màn hình
+                autoFocus={true} 
                 onChangeText={(text) => setPlaylistName(text)}
             />
 
@@ -57,13 +59,12 @@ const styles = StyleSheet.create({
         backgroundColor: "#000",
         paddingHorizontal: 20,
     },
-    // Style cho nút đóng
     closeButton: {
         position: "absolute",
-        top: 50,    // Khoảng cách từ đỉnh màn hình xuống (tùy chỉnh cho phù hợp tai thỏ)
-        right: 20,  // Khoảng cách từ lề phải vào
-        padding: 10, // Tăng vùng bấm cho người dùng
-        zIndex: 10,  // Đảm bảo nút luôn nằm trên cùng
+        top: 50,    
+        right: 20,  
+        padding: 10,
+        zIndex: 10, 
     },
     text: {
         color: "#fff",
@@ -83,10 +84,10 @@ const styles = StyleSheet.create({
     },
     createBtn: {
         marginTop: 40,
-        backgroundColor: Colors.teal, // Sử dụng màu teal cho đồng bộ app nhạc
+        backgroundColor: Colors.teal, 
         paddingHorizontal: 50,
         paddingVertical: 14,
-        borderRadius: 25, // Bo tròn hơn cho hiện đại
+        borderRadius: 25, 
     },
     createBtnText: {
         fontSize: 16,

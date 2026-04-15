@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/theme';
 import { useCurrentTrack } from '@/context/currentTrack-context';
+import { usePlayer } from '@/context/player-context';
 import { addTrackToPlayListAPI, createPlayListAPI, getMemberPlayListAPI, getPlayListDetailAPI } from '@/services/listService';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -7,7 +8,6 @@ import Slider from '@react-native-community/slider';
 import { useAudioPlayerStatus } from 'expo-audio';
 import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
-import { usePlayer } from '@/context/player-context';
 import {
     ActivityIndicator,
     Alert,
@@ -60,7 +60,7 @@ function CurrentTrackUI({ currentTrack, player }: { currentTrack: any, player: a
     // Navigate back to whichever tab was active before opening the player
     const handleClose = () => {
         const tab = lastActiveTab || 'home';
-        router.replace(`/(tabs)/${tab}` as any);
+        router.navigate(`/(tabs)/${tab}` as any);
     };
 
     // --- STATES ---
@@ -199,6 +199,7 @@ function CurrentTrackUI({ currentTrack, player }: { currentTrack: any, player: a
 
     const displayPosition = isSeeking ? seekValue : status.currentTime;
     const duration = status.duration > 0 ? status.duration : 1;
+ 
 
     return (
         <View style={[styles.safeArea, { paddingTop: insets.top }]}>

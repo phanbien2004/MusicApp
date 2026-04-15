@@ -18,6 +18,12 @@ export default function AdminLayout() {
                 name="track-review" 
             />
             <Stack.Screen 
+                name="album-review" 
+            />
+            <Stack.Screen 
+                name="album-detail" 
+            />
+            <Stack.Screen 
                 name="tag-manager" 
             />
         </Stack>

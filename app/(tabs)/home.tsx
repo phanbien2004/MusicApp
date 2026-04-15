@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { useNotifications } from '@/context/notification-context';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -54,6 +55,7 @@ const recommendedData = [
 export default function HomeScreen() {
   const [isPlaying, setIsPlaying] = useState(false);
   const router = useRouter();
+  const { unreadCount } = useNotifications();
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -72,7 +74,11 @@ export default function HomeScreen() {
             </TouchableOpacity>
             <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/(tabs)/notifications')}>
               <Ionicons name="notifications-outline" size={24} color={Colors.white} />
-              <View style={styles.notifDot} />
+              {unreadCount > 0 && (
+                <View style={styles.notifBadge}>
+                  <Text style={styles.notifBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -182,19 +188,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 20,
-    backgroundColor: Colors.surface,
+    backgroundColor: '#1A1A1A',
     position: 'relative',
   },
-  notifDot: {
+  notifBadge: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: 6,
+    right: 6,
     backgroundColor: Colors.teal,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
     borderWidth: 1.5,
-    borderColor: Colors.surface,
+    borderColor: '#000',
+  },
+  notifBadgeText: {
+    color: '#000',
+    fontSize: 9,
+    fontWeight: '900',
   },
 
   // Banner

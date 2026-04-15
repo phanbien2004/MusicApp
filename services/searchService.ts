@@ -98,3 +98,12 @@ export async function searchAPI(data: SearchRequest): Promise<SearchResponse> {
     console.log("Response SearchAPI: ", res.data);
     return res.data
 }
+
+
+import { CurrentTrack } from '@/context/currentTrack-context';
+export const searchTrack = async (id : any) : Promise<CurrentTrack> => {
+    console.log("Search Track");
+    const res = await apiClient.get(`/api/v1/track?trackId=${id}`);
+    console.log("RESPONESE SEARCHTRACK", res.data);
+    return res.data as CurrentTrack
+}
