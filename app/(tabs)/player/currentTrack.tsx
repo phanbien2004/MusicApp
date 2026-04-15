@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/theme';
+import { USER_ID_STORAGE_KEY } from '@/constants/storageKeys';
 import { useCurrentTrack } from '@/context/currentTrack-context';
 import { addTrackToPlayListAPI, createPlayListAPI, getMemberPlayListAPI, getPlayListDetailAPI } from '@/services/listService';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,6 +32,19 @@ const ARTWORK_SIZE = width - 80;
 const QUEUE_HEIGHT = height * 0.85;
 
 // Helper format thời gian
+const parseStoredUserId = (value: string | null) => {
+    if (!value) return null;
+
+    try {
+        const parsedValue = JSON.parse(value);
+        const normalizedValue = typeof parsedValue === 'number' ? parsedValue : Number(parsedValue);
+        return Number.isFinite(normalizedValue) && normalizedValue > 0 ? String(normalizedValue) : null;
+    } catch {
+        const normalizedValue = Number(value);
+        return Number.isFinite(normalizedValue) && normalizedValue > 0 ? String(normalizedValue) : null;
+    }
+};
+
 const formatTime = (timeInSeconds: number) => {
     if (!timeInSeconds || isNaN(timeInSeconds)) return "0:00";
     const totalSeconds = Math.floor(timeInSeconds);
@@ -93,7 +107,8 @@ function CurrentTrackUI({ currentTrack, player }: { currentTrack: any, player: a
         setIsFetchingPlaylists(true);
         setMyPlaylists([]);
         try {
-            const userId = await AsyncStorage.getItem('userId');
+            const storedUserId = await AsyncStorage.getItem(USER_ID_STORAGE_KEY);
+            const userId = parseStoredUserId(storedUserId);
             if (!userId) return;
 
             // Step 1: fetch basic playlist list (id, title, thumbnailUrl only)
@@ -350,12 +365,13 @@ function CurrentTrackUI({ currentTrack, player }: { currentTrack: any, player: a
                                                     {item.title}
                                                 </Text>
                                                 {isSaved ? (
-                                                    <Text style={styles.savedLabel}>Already in this playlist</Text>
+                                                    <Text style={styles.savedLabel}>Da duoc them vao playlist nay</Text>
                                                 ) : (
-                                                    <Text style={styles.trackCount}>
-                                                        {item.tracks?.length ?? 0} {item.tracks?.length === 1 ? 'track' : 'tracks'}
-                                                    </Text>
+                                                    <Text style={styles.availableLabel}>Co the them vao playlist nay</Text>
                                                 )}
+                                                <Text style={styles.trackCount}>
+                                                    {item.tracks?.length ?? 0} {item.tracks?.length === 1 ? 'track' : 'tracks'}
+                                                </Text>
                                             </View>
 
                                             <View style={[
@@ -490,6 +506,7 @@ const styles = StyleSheet.create({
 
     // ── Sub-labels ──
     savedLabel: { color: Colors.teal, fontSize: 11, fontWeight: '700', marginTop: 2, opacity: 0.8 },
+    availableLabel: { color: Colors.white, fontSize: 11, fontWeight: '700', marginTop: 2, opacity: 0.85 },
     trackCount: { color: '#666', fontSize: 12, marginTop: 2 },
 
     // ── Action button ──
