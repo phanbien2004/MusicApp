@@ -25,7 +25,7 @@ import { useCurrentTrack } from '@/context/currentTrack-context';
 import { useJam } from '@/context/jam-context';
 
 import { createStompClient } from '@/api/apiSocket';
-import { deleteJamSessionAPI, leaveJamSessionAPI, updateJamSessionAPI } from '@/services/jamService';
+import { deleteJamSessionAPI, inviteJamSessionAPI, leaveJamSessionAPI, updateJamSessionAPI } from '@/services/jamService';
 import { searchAPI } from '@/services/searchService';
 
 import { acceptNotification, acceptNotificationRequestDTO } from '@/services/jamService';
@@ -40,7 +40,12 @@ const SHEET_HEIGHT = height * 0.55;
 
 export default function JamRoomScreen() {
     const router = useRouter();
-    const { jamId } = useLocalSearchParams<{ jamId?: string }>();
+    const { jamId, seekPosition, isPlaying: isPlayingParam, t } = useLocalSearchParams<{
+        jamId?: string;
+        seekPosition?: string;
+        isPlaying?: string;
+        t?:string
+    }>();
     const { accessToken } = useAuth();
     const { activeSession, clearActiveSession, isHydrated, setActiveSession } = useJam();
     const { currentTrack, player, setCurrentTrack } = useCurrentTrack()!;
@@ -60,11 +65,60 @@ export default function JamRoomScreen() {
     const [inviteLoading, setInviteLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
+    const [isSeeking, setIsSeeking] = useState(false);
+    const [seekValue, setSeekValue] = useState(0);
+
+    const stompClientRef       = useRef<any>(null);
+    const playerRef            = useRef(player);
+    const isHostRef            = useRef(isHost);     
+    const currentTrackRef      = useRef(currentTrack);
+    const memberIdRef          = useRef<number | null>(null);
+    const progressWidthRef     = useRef(1);
+    const initialSyncDoneRef   = useRef(false);   
+    const syncTimeoutRef       = useRef<ReturnType<typeof setTimeout> | null>(null); 
+    const isHandoverDone = useRef(false); // Chốt chặn
+
     useEffect(() => {
         if (!inviteQuery.trim()) {
             setInviteResults([]);
         }
     }, [inviteQuery]);
+
+    useEffect(() => {
+        console.log("[JamRoom] Resetting sync guard for new session/re-join");
+        initialSyncDoneRef.current = false; 
+    }, [jamId, t]);
+
+    useEffect(() => {
+        if (!seekPosition) return;
+        if (initialSyncDoneRef.current) return;       
+        if (status.duration <= 0) return;           
+        
+        initialSyncDoneRef.current = true;
+
+        const pos = parseFloat(seekPosition);
+        const shouldPlay = isPlayingParam === 'true';
+        console.log('[JamRoom] Player ready (d:', status.duration, ') → sync in 200ms | pos:', pos, '| play:', shouldPlay);
+        
+        syncTimeoutRef.current = setTimeout(async () => {
+            try {
+                await playerRef.current.seekTo(pos);
+                if (shouldPlay) {
+                    playerRef.current.play();
+                } else {
+                    playerRef.current.pause();
+                }
+                console.log('[JamRoom] Initial sync done ✔ pos:', pos, '| playing:', shouldPlay);
+            } catch (e) {
+                console.error('[JamRoom] Initial sync error:', e);
+            }
+        }, 400);
+    }, [status.duration, jamId, t]);
+
+    useEffect(() => {
+        return () => { if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current); };
+    }, []);
+
 
     const handleSearchInvites = async (query: string) => {
         if (!query.trim()) return;
@@ -88,15 +142,43 @@ export default function JamRoomScreen() {
         }
     };
 
-    const [isSeeking, setIsSeeking] = useState(false);
-    const [seekValue, setSeekValue] = useState(0);
+   useEffect(() => {
+        if (!isHost || !activeSession?.sessionId) return;
+        console.log("📡 [SYNC] Bắt đầu tự động gửi trạng thái mỗi 2s");
 
-    const stompClientRef = useRef<any>(null);
-    const playerRef = useRef(player);
-    const isHostRef = useRef(isHost);     
-    const currentTrackRef = useRef(currentTrack);
-    const memberIdRef = useRef<number | null>(null);
-    const progressWidthRef = useRef(1);
+        const intervalId = setInterval(() => {
+            const client = stompClientRef.current;
+            if (client && client.connected) {
+                const currentTime = playerRef.current?.currentTime || 0;
+                const isPlaying = playerRef.current?.playing || false;
+
+                const payload = {
+                    jamId: activeSession.sessionId,
+                    currentSeekPosition: Math.floor(currentTime),
+                    isPlaying: isPlaying,
+                };
+                client.publish({
+                    destination: '/app/jam/player-state',
+                    body: JSON.stringify(payload)
+                });
+            }
+        }, 1000);
+
+    return () => {
+        console.log("🛑 [SYNC] Dừng tự động gửi trạng thái");
+        clearInterval(intervalId);
+    };
+}, [isHost, activeSession?.sessionId]);
+
+    const handleSendInvites = async () => {
+        const res = await inviteJamSessionAPI(Number(activeSession?.sessionId), Array.from(invitedIds).map(id => parseInt(id, 10)));
+        Toast.show(res.message || 'Invites sent!', {
+            position: Toast.positions.CENTER,
+            backgroundColor: Colors.teal,
+        });
+        setInvitedIds(new Set());
+    }
+
 
     useEffect(() => { playerRef.current = player; }, [player]);
     useEffect(() => { isHostRef.current = isHost; }, [isHost]);
@@ -123,7 +205,7 @@ export default function JamRoomScreen() {
 
     const handlePushNotification = async(data : any) => {
         const userId = await AsyncStorage.getItem('userId');
-        if(data.senderId != userId) {
+        if(data.senderId != userId && data.message !== null) {
             Toast.show(data.message, {
                 duration: Toast.durations.LONG,
                 position: 150,
@@ -174,7 +256,7 @@ export default function JamRoomScreen() {
 
     useEffect(() => {
         if (!activeSession?.sessionId) return;
-        setActivityItems([]); // Xoá trắng thông báo khi vào phòng mới
+        setActivityItems([]);
         const client = createStompClient();
         client.onConnect = () => {
             console.log("Connected to Jam:", activeSession.sessionId);
@@ -457,7 +539,7 @@ export default function JamRoomScreen() {
                                 results={inviteResults}
                                 invitedIds={invitedIds}
                                 setInvitedIds={setInvitedIds}
-                                onSendInvites={() => {}} 
+                                onSendInvites={handleSendInvites} 
                                 onSearch={handleSearchInvites}
                             />
                         )}

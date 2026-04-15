@@ -45,7 +45,7 @@ export default function JamNotificationSheet({
                 timeArray[4],
                 timeArray[5] || 0
             );
-
+            
             const now = new Date();
             const diffInSeconds = Math.floor((now.getTime() - pastDate.getTime()) / 1000);
 

@@ -14,6 +14,7 @@ import { useAuth } from '@/context/auth-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { usePlayer } from '@/context/player-context';
 import { getProfileAPI, ProfileResponse } from '@/services/profileService';
 import PremiumUpgradeModal from '@/components/PremiumUpgradeModal';
 import { getMySubscriptionAPI } from '@/services/paymentService';
@@ -21,6 +22,11 @@ import { getMySubscriptionAPI } from '@/services/paymentService';
 export default function AccountSettingsScreen() {
     const router = useRouter();
     const { logout } = useAuth();
+    const { lastActiveTab } = usePlayer();
+    const handleBack = () => {
+        const tab = lastActiveTab || 'profile';
+        router.navigate(`/(tabs)/${tab}` as any);
+    };
     
     const [profileData, setProfileData] = useState<ProfileResponse | null>(null);
     const [showPremiumModal, setShowPremiumModal] = useState(false);
@@ -67,7 +73,7 @@ export default function AccountSettingsScreen() {
             <StatusBar barStyle="light-content" backgroundColor="#000" />
             
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+                <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
                     <Ionicons name="chevron-back" size={20} color={Colors.white} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Account Settings</Text>

@@ -1,12 +1,14 @@
 import { Colors } from '@/constants/theme';
+import { createArtistProfileAPI, updateArtistProfileAPI } from "@/services/artistService";
+import { getPresignedUploadUrl, uploadFileToMinIO } from "@/services/storageService";
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import * as ImagePicker from 'expo-image-picker';
-import { Alert } from 'react-native';
 import {
     Dimensions,
+    Image,
     Platform,
     SafeAreaView,
     ScrollView,
@@ -16,10 +18,7 @@ import {
     TextInput,
     TouchableOpacity,
     View,
-    Image,
 } from 'react-native';
-import { getPresignedUploadUrl, uploadFileToMinIO } from "@/services/storageService";
-import { createArtistProfileAPI, updateArtistProfileAPI } from "@/services/artistService";
 import Toast from 'react-native-root-toast';
 
 const { width } = Dimensions.get('window');

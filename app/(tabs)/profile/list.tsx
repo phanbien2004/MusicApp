@@ -150,7 +150,7 @@ export default function PlaylistDetailScreen() {
             const firstTrack = { ...detail.tracks[0], trackUrl: (detail.tracks[0] as any).trackUrl };
             await AsyncStorage.setItem('currentPlaylistId', detail.id.toString());
             setActivePlaylistId(detail.id.toString());
-            setCurrentTrack(firstTrack);
+            setCurrentTrack(firstTrack, false);
             player.play();
         } else {
             status.playing ? player.pause() : player.play();
@@ -160,13 +160,13 @@ export default function PlaylistDetailScreen() {
     const handleTrackSelect = async (item: any) => {
         await AsyncStorage.setItem('currentPlaylistId', detail!.id.toString());
         setActivePlaylistId(detail!.id.toString());
-        setCurrentTrack({ ...item, trackUrl: (item as any).trackUrl });
+        setCurrentTrack({ ...item, trackUrl: (item as any).trackUrl }, false);
         player.play();
     };
 
     // --- LOGIC CHỈNH SỬA & COLLAB ---
     const handleSaveEdit = async () => {
-        if (!editName.trim()) return Alert.alert("Lỗi", "Vui lòng nhập tên");
+        if (!editName.trim()) return Alert.alert("Error", "Please enter a name");
         try {
             setIsUpdating(true);
             let finalThumbnailKey = detail?.thumbnailUrl || '';
@@ -178,14 +178,14 @@ export default function PlaylistDetailScreen() {
             await updatePlayListAPI(Number(id), editName.trim(), editDesc.trim(), finalThumbnailKey, isPublic);
             setShowEditModal(false);
             loadDetail();
-        } catch (e) { Alert.alert("Lỗi lưu"); } finally { setIsUpdating(false); }
+        } catch (e) { Alert.alert("Error saving"); } finally { setIsUpdating(false); }
     };
 
     const handleAddCollaborator = async (userId: number) => {
         try {
             await addCollaboratorToPlayListAPI(Number(id), [userId]);
             loadDetail();
-        } catch (e) { Alert.alert("Lỗi thêm cộng tác viên"); }
+        } catch (e) { Alert.alert("Error adding collaborator"); }
     };
 
     const handleRemoveTrack = async () => {
@@ -194,14 +194,14 @@ export default function PlaylistDetailScreen() {
             await removeTrackFromPlayListAPI([Number(id)], selectedTrack.id);
             setShowTrackOptions(false);
             loadDetail();
-        } catch (e) { Alert.alert("Lỗi xóa bài"); }
+        } catch (e) { Alert.alert("Error removing track"); }
     };
 
     const handleAddTrack = async (trackId: number) => {
         try {
             await addTrackToPlayListAPI([Number(id)], trackId);
             loadDetail();
-        } catch (e) { Alert.alert("Lỗi thêm bài"); }
+        } catch (e) { Alert.alert("Error adding track"); }
     };
 
     // --- SEARCH EFFECTS ---
@@ -237,7 +237,7 @@ export default function PlaylistDetailScreen() {
 
     const handleClose = () => {
         const tab = lastActiveTab || 'home';
-        router.replace(`/(tabs)/${tab}` as any);
+        router.navigate(`/(tabs)/${tab}` as any);
     };
     return (
         <View style={styles.container}>

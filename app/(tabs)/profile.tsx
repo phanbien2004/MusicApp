@@ -43,10 +43,10 @@ export default function ProfileScreen() {
                 getMySubscriptionAPI().then(subscription => {
                      // Kiểm tra nếu isActive là true và nó là PREMIUM
                      setIsPremium(subscription?.isActive || false);
-                }).catch(e => console.log("Lỗi tải gói premium: ", e?.message));
+                }).catch(e => console.log("Error loading premium plan: ", e?.message));
             }
         } catch (error) {
-            console.error("Lỗi khi lấy profile chung:", error);
+            console.error("Error fetching general profile:", error);
         }
     }, []);
 

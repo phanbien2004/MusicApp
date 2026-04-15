@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
+import { usePlayer } from '@/context/player-context';
 import {
     Dimensions,
     Image,
@@ -23,6 +24,12 @@ const { width } = Dimensions.get('window');
 export default function ArtistPortalScreen() {
     const router = useRouter();
     const [profileData, setProfileData] = useState<ArtistProfileData | null>(null);
+    const { lastActiveTab } = usePlayer();
+
+    const handleBack = () => {
+        const tab = lastActiveTab || 'profile';
+        router.navigate(`/(tabs)/${tab}` as any);
+    };
 
     const fetchProfile = useCallback(async () => {
         try {
@@ -57,7 +64,7 @@ export default function ArtistPortalScreen() {
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 {/* Header Icons */}
                 <View style={styles.headerRow}>
-                    <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
+                    <TouchableOpacity style={styles.iconBtn} onPress={handleBack}>
                         <Ionicons name="chevron-back" size={22} color={Colors.white} />
                     </TouchableOpacity>
                     <View style={{ flex: 1 }} />
@@ -102,7 +109,7 @@ export default function ArtistPortalScreen() {
                     </View>
                 </View>
 
-                {/* Upload Button */}
+                {/* Upload Track Button */}
                 <TouchableOpacity activeOpacity={0.8} onPress={() => router.push({
                     pathname: "/profile/upload-track",
                     params: { id: profileData?.id, stageName: profileData?.stageName }
@@ -120,13 +127,32 @@ export default function ArtistPortalScreen() {
                     </LinearGradient>
                 </TouchableOpacity>
 
+                {/* Upload Album Button */}
+                <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={{ marginHorizontal: 24, marginBottom: 32 }}
+                    onPress={() => router.push('/profile/upload-album' as any)}
+                >
+                    <LinearGradient
+                        colors={['#7C3AED', '#A855F7', '#6366F1']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={[styles.uploadBtn, { marginHorizontal: 0, marginBottom: 0 }]}
+                    >
+                        <View style={styles.uploadBtnContent}>
+                            <Ionicons name="albums-outline" size={20} color={Colors.white} />
+                            <Text style={[styles.uploadBtnText, { color: Colors.white }]}>CREATE NEW ALBUM</Text>
+                        </View>
+                    </LinearGradient>
+                </TouchableOpacity>
+
                 {/* My Drops Section */}
                 <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>My Drops</Text>
                 </View>
 
                 <View style={[styles.dropsGrid, { alignItems: 'center', justifyContent: 'center', marginTop: 40 }]}>
-                    <Text style={{ color: '#555' }}>Chưa có bài hát nào.</Text>
+                    <Text style={{ color: '#555' }}>No tracks available.</Text>
                 </View>
             </ScrollView>
         </SafeAreaView>

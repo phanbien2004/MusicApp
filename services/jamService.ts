@@ -5,6 +5,7 @@
 
 import apiClient from "@/api/apiClient";
 import { BASE_URL } from "@/constants/baseURL";
+import { CurrentTrack } from "@/context/currentTrack-context";
 import { TextDecoder, TextEncoder } from 'text-encoding';
 
 if (!global.TextEncoder) { (global as any).TextEncoder = TextEncoder; }
@@ -98,6 +99,18 @@ export const updateJamSessionAPI = async (data: UpdateJamPayload) => {
     return res.data;
 };
 
+export const inviteJamSessionAPI = async (jamSessionId: number, memberIds: number[]) => {
+    console.log("Payload InviteJamSessionAPI: ", { jamSessionId, memberIds });
+    console.log(`POST INVITEJAMSESSIONAPI : ${BASE_URL}/api/v1/jam/invite`);
+    const res = await apiClient.post(`${BASE_URL}/api/v1/jam/invite`, {
+        jamSessionId,
+        memberIds
+    });
+    console.log("Response InviteJamSessionAPI: ", res.data);
+    return res.data;
+};
+
+
 export interface acceptNotificationRequestDTO  {
     jamId: number | undefined;
     jamNotificationId: number,
@@ -117,4 +130,46 @@ export const acceptNotification = async (dataRequest : acceptNotificationRequest
     });
     console.log("RESPONSE ACCEPTNOTIFICATION: ", res.config.data);
     return res;
+}
+
+export interface JamTrackDTO extends CurrentTrack {
+    currentSeekPosition: number,
+    playing: boolean
+}
+
+export interface ResponseJamDTO  {
+    id: number,
+    code: string,
+    size: 0,
+    members : [
+        {
+            id: number,
+            avatarUrl: string,
+            name: string,
+            friendStatus: string
+        }
+    ],
+    owner: {
+        id : number,
+        avatarUrl : string,
+        name: string,
+        friendStatus: string
+    },
+    jamTrack: JamTrackDTO
+}
+export const getJam = async (id: number) : Promise <ResponseJamDTO> => {
+    console.log("GET JAM", id);
+    const res = await apiClient.get(`/api/v1/jam/${id}`);
+    console.log("RESPONSE GET JAM: ", res.data);
+    return res.data as ResponseJamDTO;
+}
+
+export const setJamContext = async (jamId: number, trackId: number, playlistId: number | null, albumId: number | null) => {
+    console.log("PUT CONTEXT");
+    console.log(jamId,trackId,playlistId,albumId );
+    const res = await apiClient.put("/api/v1/jam/context", {
+        jamId, trackId, playlistId, albumId
+    });
+    console.log("RESPONSE SETJAMCONTEXT: ", res.data);
+    return res.data
 }

@@ -60,7 +60,7 @@ function CurrentTrackUI({ currentTrack, player }: { currentTrack: any, player: a
     // Navigate back to whichever tab was active before opening the player
     const handleClose = () => {
         const tab = lastActiveTab || 'home';
-        router.replace(`/(tabs)/${tab}` as any);
+        router.navigate(`/(tabs)/${tab}` as any);
     };
 
     // --- STATES ---

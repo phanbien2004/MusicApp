@@ -23,7 +23,7 @@ export default function ArtistVerification() {
             const data = await getAllPendingArtistProfilesAPI();
             setPendingList(data);
         } catch (error) {
-            console.error("Lỗi fetch pending artists:", error);
+            console.error("Error fetching pending artists:", error);
         }
     }
 

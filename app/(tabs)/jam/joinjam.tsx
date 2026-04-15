@@ -1,7 +1,9 @@
 import { Colors } from '@/constants/theme';
 import { useJam } from '@/context/jam-context';
+import { usePlayer } from '@/context/player-context';
 // import { joinJamSessionByCodeAPI, resolveJamSession } from '@/services/jamService';
-import { joinJamSessionByCodeAPI } from '@/services/jamService';
+import { useCurrentTrack } from '@/context/currentTrack-context';
+import { getJam, joinJamSessionByCodeAPI } from '@/services/jamService';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -12,6 +14,14 @@ export default function JoinJamScreen() {
     const { setActiveSession } = useJam();
     const [code, setCode] = useState('');
     const [loading, setLoading] = useState(false);
+    const { lastActiveTab } = usePlayer();
+    const {setCurrentTrack} = useCurrentTrack()!;
+    
+
+    const handleClose = () => {
+        const tab = lastActiveTab || 'home';
+        router.navigate(`/(tabs)/${tab}` as any);
+    }
 
     const handleJoin = async () => {
         if (!code.trim()) return;
@@ -24,11 +34,25 @@ export default function JoinJamScreen() {
                     sessionId: res,
                     isHost: false
                 })
-                router.replace(`/(tabs)/jam/jamroom?jamId=${res}` as any);
+                const dataJam = await getJam(res);
+                const seekPosition = dataJam.jamTrack.currentSeekPosition ?? 0;
+                        const isPlaying   = dataJam.jamTrack.playing  ?? false;
+                        console.log("[JamSync] seekPosition:", seekPosition, "| isPlaying:", isPlaying);
+                        setCurrentTrack(dataJam.jamTrack, true);
+                        router.push({
+                            pathname: '/jam/jamroom',
+                            params: {
+                                jamId: String(res),
+                                seekPosition: String(seekPosition),
+                                isPlaying: String(isPlaying),
+                                t: Date.now(),
+                            },
+                        } as any);
             }
             return;
-        } catch {
+        } catch (e){
             Alert.alert("Oops!", "Could not join this Jam room.");
+            console.log("[ERROR] [JOINJAMBYCODE]", e);
         } finally {
             setLoading(false);
         }
@@ -53,7 +77,7 @@ export default function JoinJamScreen() {
                             <Text style={styles.joinBtnText}>{loading ? 'Joining...' : 'Join'}</Text>
                         </LinearGradient>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+                    <TouchableOpacity style={styles.cancelBtn} onPress={handleClose}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
                 </View>
             </View>
         </SafeAreaView>
@@ -196,3 +220,5 @@ const styles = StyleSheet.create({
         color: Colors.gray,
     },
 });
+
+

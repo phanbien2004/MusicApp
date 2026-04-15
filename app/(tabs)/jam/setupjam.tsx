@@ -8,6 +8,8 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Platform, SafeAreaView, StatusBar, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { CreateJamPayLoad } from '@/services/jamService';
+import { usePlayer } from '@/context/player-context';
+
 
 
 const ROOM_SIZES = [2, 4, 6, 8, 10];
@@ -18,6 +20,12 @@ export default function SetupJamScreen() {
     const [privacyMode, setPrivacyMode] = useState(false);
     const [roomSize, setRoomSize] = useState(4);
     const [loading, setLoading] = useState(false);
+    const { lastActiveTab } = usePlayer();
+
+    const handleClose = () => {
+        const tab = lastActiveTab || 'home';
+        router.navigate(`/(tabs)/${tab}` as any);
+    }
 
     const handleStartJam = async () => {
         const payload : CreateJamPayLoad = {
@@ -35,7 +43,7 @@ export default function SetupJamScreen() {
                     isPrivate: privacyMode,
                     isHost: true
                 })
-                router.replace(`/(tabs)/jam/jamroom?jamId=${res.id}` as any);
+                router.push(`/(tabs)/jam/jamroom?jamId=${res.id}` as any);
             }
         } catch {
             Alert.alert("Error", "Could not create Jam session.");
@@ -81,7 +89,7 @@ export default function SetupJamScreen() {
                             {loading ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="play-circle" size={22} color={Colors.white} /><Text style={styles.startBtnText}>Start Jam Session</Text></>}
                         </LinearGradient>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+                    <TouchableOpacity style={styles.cancelBtn} onPress={handleClose}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
                 </View>
             </View>
         </SafeAreaView>

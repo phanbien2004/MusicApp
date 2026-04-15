@@ -13,91 +13,89 @@ import {
     View,
 } from 'react-native';
 
-interface Notification {
-    id: string;
-    name: string;
-    content: string;
-    time: string;
-    type: 'jam' | 'friend' | 'like' | 'follow';
-}
-
-const notificationsData: Notification[] = [
-    {
-        id: '1',
-        name: 'Iam HDA',
-        content: 'invited you to a Jam',
-        time: 'Just now',
-        type: 'jam',
-    },
-    {
-        id: '2',
-        name: 'OneKill',
-        content: 'Sent you a friend request',
-        time: '16 minutes ago',
-        type: 'friend',
-    },
-    {
-        id: '3',
-        name: 'Sơn Tùng MTP',
-        content: 'liked your playlist',
-        time: '1 hour ago',
-        type: 'like',
-    },
-    {
-        id: '4',
-        name: 'Alex99',
-        content: 'started following you',
-        time: '3 hours ago',
-        type: 'follow',
-    },
-    {
-        id: '5',
-        name: 'MinhThu',
-        content: 'invited you to a Jam',
-        time: 'Yesterday',
-        type: 'jam',
-    },
-    {
-        id: '6',
-        name: 'Đen Vâu',
-        content: 'Sent you a friend request',
-        time: '2 days ago',
-        type: 'friend',
-    },
-];
+import { useCurrentTrack } from '@/context/currentTrack-context';
+import { useJam } from '@/context/jam-context';
+import { NotificationDTO, useNotifications } from '@/context/notification-context';
+import { acceptFriendAPI } from '@/services/friendService';
+import { getJam, joinJamSessionByIdAPI } from '@/services/jamService';
 
 export default function NotificationsScreen() {
     const router = useRouter();
-    const [dismissed, setDismissed] = useState<string[]>([]);
+    const { notifications, markAllAsRead, dismissNotification } = useNotifications();
+    const [acceptedIds, setAcceptedIds] = useState<string[]>([]);
+    const { setActiveSession } = useJam();
+    const { setCurrentTrack } = useCurrentTrack()!;
 
-    const handleDismiss = (id: string) => {
-        setDismissed((prev) => [...prev, id]);
-    };
-
-    const activeNotifications = notificationsData.filter(
-        (n) => !dismissed.includes(n.id)
+    // Mark as read when focusing the screen
+    useFocusEffect(
+        useCallback(() => {
+            markAllAsRead();
+        }, [markAllAsRead])
     );
 
-    const getTypeIcon = (type: Notification['type']) => {
+    const handleDismiss = (id: string | number) => {
+        dismissNotification(id);
+    };
+
+    const handleAcceptAction = async (item: NotificationDTO) => {
+        try {
+            if (item.type === 'FRIEND_REQUEST' && item.friendRequestSenderId) {
+                await acceptFriendAPI(item.friendRequestSenderId.toString());
+                setAcceptedIds((prev) => [...prev, String(item.notificationId)]);
+            }
+            else if (item.type === 'JAM_INVITE' && item.jamSessionId) {
+                const res = await joinJamSessionByIdAPI(item.jamSessionId);
+                if(res) {
+                    setActiveSession({
+                        sessionId: res,
+                        isHost: false
+                    });
+                    const dataJam = await getJam(res);
+                    if(dataJam && dataJam.jamTrack) {
+                        const seekPosition = dataJam.jamTrack.currentSeekPosition ?? 0;
+                        const isPlaying   = dataJam.jamTrack.playing  ?? false;
+                        console.log("[JamSync] seekPosition:", seekPosition, "| isPlaying:", isPlaying);
+                        setCurrentTrack(dataJam.jamTrack, true);
+                        router.push({
+                            pathname: '/jam/jamroom',
+                            params: {
+                                jamId: String(res),
+                                seekPosition: String(seekPosition),
+                                isPlaying: String(isPlaying),
+                                t: Date.now(),
+                            },
+                        } as any);
+                    }
+                }
+                setAcceptedIds((prev) => [...prev, String(item.notificationId)]);
+            }
+        } catch (error) {
+            console.error("Lỗi chấp nhận lời mời:", error);
+        }
+    };
+
+    const getTypeIcon = (type: string) => {
         switch (type) {
-            case 'jam': return 'people';
-            case 'friend': return 'person-add';
-            case 'like': return 'heart';
-            case 'follow': return 'person';
+            case 'JAM_JOIN':
+            case 'JAM_INVITE':
+            case 'JAM_INTERACTION': return 'people';
+            case 'FRIEND_REQUEST': return 'person-add';
+            case 'SONG_RELEASING': return 'musical-notes';
+            case 'PLAYLIST_COLLABORATION': return 'albums';
+            default: return 'notifications';
         }
     };
 
     useFocusEffect(
         useCallback(() => {
-            console.log('Active notifications');
+            console.log('Active notifications opened');
         }, [])
     );
 
-    // Chỉ jam và friend request mới cần nút Accept/Reject
-    const hasActions = (type: Notification['type']) =>
-        type === 'jam' || type === 'friend';
+    const hasActions = (type: string) =>
+        type === 'JAM_INVITE' || type === 'FRIEND_REQUEST';
 
-    const renderItem = ({ item }: { item: Notification }) => (
+    const renderItem = ({ item }: { item: NotificationDTO }) => (
         <View style={styles.notifItem}>
             {/* Avatar */}
             <View style={styles.avatarWrapper}>
@@ -106,39 +104,53 @@ export default function NotificationsScreen() {
                 </View>
                 <View style={[
                     styles.typeIconBadge,
-                    item.type === 'like' && { backgroundColor: '#E11D48' },
-                    item.type === 'follow' && { backgroundColor: '#7C3AED' },
+                    item.type === 'SONG_RELEASING' && { backgroundColor: '#E11D48' },
+                    item.type === 'FRIEND_REQUEST' && { backgroundColor: '#7C3AED' },
                 ]}>
-                    <Ionicons name={getTypeIcon(item.type)} size={10} color={Colors.white} />
+                    <Ionicons name={getTypeIcon(item.type) as any} size={10} color={Colors.white} />
                 </View>
             </View>
 
             {/* Content */}
             <View style={styles.content}>
-                <Text style={styles.nameText}>{item.name}</Text>
-                <Text style={styles.contentText}>{item.content}</Text>
-                <Text style={styles.timeText}>{item.time}</Text>
+                <Text style={styles.nameText}>
+                    {item.type.replace('_', ' ')}
+                </Text>
+                <Text style={styles.contentText}>{item.message}</Text>
+                <Text style={styles.timeText}>
+                    {item.createdAt ? new Date(item.createdAt).toLocaleString() : 'Just now'}
+                </Text>
             </View>
 
-            {/* Action buttons — chỉ dành cho jam & friend request */}
+            {/* Action buttons */}
             {hasActions(item.type) ? (
-                <View style={styles.actions}>
-                    <TouchableOpacity
-                        style={styles.actionBtnReject}
-                        onPress={() => handleDismiss(item.id)}>
-                        <Ionicons name="close" size={18} color="#FF5555" />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionBtnAccept}>
-                        <Ionicons name="checkmark" size={18} color={Colors.teal} />
-                    </TouchableOpacity>
-                </View>
+                acceptedIds.includes(String(item.notificationId)) ? (
+                    <View style={styles.acceptedBadge}>
+                        <Ionicons name="checkmark-done" size={16} color={Colors.teal} />
+                        <Text style={styles.acceptedText}>Accepted</Text>
+                    </View>
+                ) : 
+                (
+                    <View style={styles.actions}>
+                        <TouchableOpacity
+                            style={styles.actionBtnReject}
+                            onPress={() => handleDismiss(item.notificationId || Date.now())}>
+                            <Ionicons name="close" size={18} color="#FF5555" />
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                            style={styles.actionBtnAccept}
+                            onPress={() => handleAcceptAction(item)}
+                        >
+                            <Ionicons name="checkmark" size={18} color={Colors.teal} />
+                        </TouchableOpacity>
+                    </View>
+                )
             ) : (
-                // like / follow: chỉ hiện icon nhỏ thông tin, không có hành động
                 <View style={styles.infoIconWrapper}>
                     <Ionicons
-                        name={item.type === 'like' ? 'heart' : 'person-add-outline'}
+                        name={item.type === 'SONG_RELEASING' ? 'heart' : 'notifications-outline'}
                         size={20}
-                        color={item.type === 'like' ? '#E11D48' : '#7C3AED'}
+                        color={item.type === 'SONG_RELEASING' ? '#E11D48' : '#7C3AED'}
                     />
                 </View>
             )}
@@ -169,8 +181,8 @@ export default function NotificationsScreen() {
 
             {/* ─── LIST ─── */}
             <FlatList
-                data={activeNotifications}
-                keyExtractor={(item) => item.id}
+                data={notifications}
+                keyExtractor={(item, index) => item.notificationId ? String(item.notificationId) : `temp-${index}`}
                 renderItem={renderItem}
                 contentContainerStyle={styles.listContainer}
                 showsVerticalScrollIndicator={false}
@@ -178,7 +190,7 @@ export default function NotificationsScreen() {
                 ListEmptyComponent={
                     <View style={styles.emptyState}>
                         <Ionicons name="notifications-off-outline" size={56} color={Colors.gray} />
-                        <Text style={styles.emptyText}>Không có thông báo mới</Text>
+                        <Text style={styles.emptyText}>No new notifications</Text>
                     </View>
                 }
             />
@@ -219,6 +231,26 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         borderRadius: 20,
         backgroundColor: '#1A1A1A',
+        position: 'relative',
+    },
+    notifBadge: {
+        position: 'absolute',
+        top: 6,
+        right: 6,
+        backgroundColor: Colors.teal,
+        minWidth: 16,
+        height: 16,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 3,
+        borderWidth: 1.5,
+        borderColor: '#000',
+    },
+    notifBadgeText: {
+        color: '#000',
+        fontSize: 9,
+        fontWeight: '900',
     },
     separator: {
         height: 1,
@@ -361,4 +393,22 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: Colors.gray,
     },
+    acceptedBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        backgroundColor: 'rgba(51,210,148,0.1)',
+        borderWidth: 1,
+        borderColor: 'rgba(51,210,148,0.3)',
+    },
+    acceptedText: {
+        color: Colors.teal,
+        fontSize: 12,
+        fontWeight: '700',
+    }
 });
+
+

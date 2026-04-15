@@ -22,6 +22,12 @@ export default function AdminDashboard() {
             route: '/(admin)/track-review',
         },
         {
+            title: 'ALBUM REVIEW',
+            subtitle: 'VIEW PENDING ALBUMS',
+            icon: 'albums-outline',
+            route: '/(admin)/album-review',
+        },
+        {
             title: 'TAG MANAGER',
             subtitle: '',
             icon: 'pricetag-outline',

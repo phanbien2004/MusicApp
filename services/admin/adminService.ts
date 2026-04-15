@@ -188,6 +188,60 @@ export const getAllPendingTrackAPI = async (index: number, size: number): Promis
     return PendingTracsksData;
 }
 
+export interface PendingAlbumDTO {
+    id: number;
+    title: string;
+    thumbnailUrl: string;
+    releaseYear: number;
+}
+
+export interface PendingAlbumPageDTO {
+    content: PendingAlbumDTO[];
+    currentPage: number;
+    pageSize: number;
+    totalElements: number;
+    totalPages: number;
+}
+
+export interface AlbumTrackDTO {
+    id: number;
+    title: string;
+    trackUrl: string;
+    thumbnailUrl: string;
+    duration: number;
+    contributors: contributorDTO[];
+}
+
+export const getAllPendingAlbumsAPI = async (pageNumber: number, pageSize: number): Promise<PendingAlbumPageDTO> => {
+    console.log(`GET Pending Albums: ${BASE_URL}/api/v1/album/albums?pageNumber=${pageNumber}&pageSize=${pageSize}`);
+    const res = await apiClient.get(`${BASE_URL}/api/v1/album/albums`, {
+        params: { pageNumber, pageSize },
+    });
+    console.log("Response Get All Pending Albums: ", res.data);
+    return res.data as PendingAlbumPageDTO;
+};
+
+export const getAlbumTracksAPI = async (albumId: number): Promise<AlbumTrackDTO[]> => {
+    console.log(`GET Album Tracks: ${BASE_URL}/api/v1/album-track/${albumId}`);
+    const res = await apiClient.get(`${BASE_URL}/api/v1/album-track/${albumId}`);
+    console.log("Response Get Album Tracks: ", res.data);
+    return res.data as AlbumTrackDTO[];
+};
+
+export const approveAlbumAPI = async (albumId: number) => {
+    console.log(`PUT Approve Album: ${BASE_URL}/api/v1/admin/approveAlbum/${albumId}`);
+    const res = await apiClient.put(`${BASE_URL}/api/v1/admin/approveAlbum/${albumId}`);
+    console.log("Response Approve Album: ", res.data);
+    return res.data;
+};
+
+export const rejectAlbumAPI = async (albumId: number) => {
+    console.log(`PUT Reject Album: ${BASE_URL}/api/v1/admin/rejectAlbum/${albumId}`);
+    const res = await apiClient.put(`${BASE_URL}/api/v1/admin/rejectAlbum/${albumId}`);
+    console.log("Response Reject Album: ", res.data);
+    return res.data;
+};
+
 export const approveTrackAPI = async (trackId: number) => {
     console.log("Approving track with ID:", trackId);
     console.log(`PUT Approve Track: ${BASE_URL}/api/v1/admin/approveTrack/${trackId}`);
@@ -250,4 +304,30 @@ export const rejectArtistProfileAPI = async (id: number | string) => {
     const res = await apiClient.put(`${BASE_URL}/api/v1/admin/rejectArtistProfile/${id}`);
     console.log("Response Reject Artist Profile: ", res.data);
     return res.data;
+}
+
+export const getTagsAPI = async () => {
+    console.log("GET ALL TAG");
+    const res = await apiClient.get('/api/v1/tag/tags');
+    console.log('RESPONSE GET ALL TAG: ', res.data);
+    return res.data
+}
+export interface TagDTO {
+    id: number;
+    displayName: string;
+}
+export const addTagAPI = async (tmpName: string) : Promise<TagDTO> => {
+    console.log("POST CREATE TAG");
+    const res= await apiClient.post(`api/v1/tag/createTag`, {
+        name: "AddTag", displayName: tmpName, description: "AddTag", parentTagId: 0
+    })
+    console.log("RESPONSE CREATE NEW TAG: ", res.data);
+    return res.data as TagDTO   
+}
+
+export const deleteTagAPI = async (idTagDelete: number) => {
+    console.log("DELETE TAG");
+    const res = await apiClient.delete(`api/v1/tag/deleteTag?id=${idTagDelete}`);
+    console.log("RESPONSE DELETE TAG", res);
+    return res
 }

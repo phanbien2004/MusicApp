@@ -1,4 +1,5 @@
 import { createStompClient } from '@/api/apiSocket';
+import { setJamContext } from '@/services/jamService';
 import { TrackContentType } from '@/services/searchService';
 import { AudioPlayer, useAudioPlayer } from 'expo-audio';
 import React, { createContext, useContext, useEffect, useState } from 'react';
@@ -35,7 +36,7 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
         }
     }, [currentTrack?.trackUrl]);
 
-        const handleSetTrack = (track: CurrentTrack, isReceiptFromJam: boolean) => {
+        const handleSetTrack = async (track: CurrentTrack, isReceiptFromJam: boolean) => {
         if (isReceiptFromJam) {
             setCurrentTrack(track);
         } else {
@@ -69,6 +70,13 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
                 }
                 if (!activeSession.isHost) {
                     Alert.alert("Request sent. Awaiting host approval.");
+                }
+                if(activeSession.sessionId && activeSession.isHost) {
+                    try{
+                        const res = await setJamContext(activeSession.sessionId,track.id,null,null);
+                    }catch(e){
+                        console.error("Loi SETJAMCONTEXT: ", e);
+                    }
                 }
             } else {
                 setCurrentTrack(track);
