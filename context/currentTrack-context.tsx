@@ -77,7 +77,7 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
     const [queue, setQueue] = useState<CurrentTrack[]>([]);
     const [queueCursor, setQueueCursor] = useState(-1);
     const [activePlaybackContext, setActivePlaybackContext] = useState<PlaybackContext | null>(null);
-    const player = useAudioPlayer(currentTrack?.trackUrl || null);
+    const player = useAudioPlayer(currentTrack?.trackUrl ? { uri: currentTrack.trackUrl } : null);
     const status = useAudioPlayerStatus(player);
     const { activeSession } = useJam();
 
@@ -276,7 +276,14 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
         }
 
         const candidateIndex = queueCursorRef.current >= 0 ? queueCursorRef.current + 1 : 0;
-        const nextTrack = queueRef.current[candidateIndex];
+        let nextTrack = queueRef.current[candidateIndex];
+
+        // Nếu đã đến cuối danh sách -> Gọi lại refreshQueue() để lấy API queue mới
+        if (!nextTrack) {
+            await refreshQueue();
+            // Sau khi lấy API về thì reset lấy bài index đầu tiên của danh sách mới
+            nextTrack = queueRef.current[0];
+        }
 
         if (!nextTrack) {
             return;

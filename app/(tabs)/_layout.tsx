@@ -177,6 +177,7 @@ function TabLayoutInner() {
         <Tabs.Screen name="profile/other-profile" options={{ href: null }} />
         <Tabs.Screen name="album/album" options={{ href: null }} />
         <Tabs.Screen name="profile/upload-album" options={{ href: null }} />
+        <Tabs.Screen name="profile/artist-settings" options={{ href: null }} />
       </Tabs>
     </View>
   );

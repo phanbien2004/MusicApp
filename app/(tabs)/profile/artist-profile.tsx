@@ -172,7 +172,7 @@ export default function ArtistProfileScreen() {
                                 </TouchableOpacity>
                             ))
                         ) : (
-                            <Text style={styles.infoText}>Artist chua co popular track.</Text>
+                            <Text style={styles.infoText}>Artist doesn't have popular track.</Text>
                         )}
                     </View>
 
