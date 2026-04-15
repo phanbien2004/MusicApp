@@ -23,6 +23,48 @@ export interface MySubscriptionResponse {
     isActive: boolean;
 }
 
+type RawSubscriptionDate = string | [number, number, number] | null | undefined;
+
+interface RawMySubscriptionResponse {
+    id?: number | null;
+    planName?: string | null;
+    subscriptionType?: 'FREE' | 'PREMIUM' | null;
+    price?: number | null;
+    startDate?: RawSubscriptionDate;
+    endDate?: RawSubscriptionDate;
+    isActive?: boolean | null;
+    active?: boolean | null;
+}
+
+const normalizeSubscriptionDate = (value: RawSubscriptionDate): string | null => {
+    if (!value) return null;
+
+    if (Array.isArray(value) && value.length >= 3) {
+        const [year, month, day] = value;
+        const paddedMonth = String(month).padStart(2, '0');
+        const paddedDay = String(day).padStart(2, '0');
+        return `${year}-${paddedMonth}-${paddedDay}`;
+    }
+
+    if (typeof value === 'string') {
+        return value;
+    }
+
+    return null;
+};
+
+const normalizeMySubscriptionResponse = (
+    payload: RawMySubscriptionResponse
+): MySubscriptionResponse => ({
+    id: payload.id ?? null,
+    planName: payload.planName ?? '',
+    subscriptionType: payload.subscriptionType ?? 'FREE',
+    price: payload.price ?? 0,
+    startDate: normalizeSubscriptionDate(payload.startDate),
+    endDate: normalizeSubscriptionDate(payload.endDate),
+    isActive: Boolean(payload.isActive ?? payload.active),
+});
+
 // ─── Subscription Plan APIs ───────────────────────────────────────
 
 /**
@@ -54,7 +96,7 @@ export const createPaymentCheckoutAPI = async (planId: number): Promise<Checkout
  */
 export const getMySubscriptionAPI = async (): Promise<MySubscriptionResponse> => {
     const res = await apiClient.get('/api/v1/subscription/my');
-    return res.data as MySubscriptionResponse;
+    return normalizeMySubscriptionResponse(res.data as RawMySubscriptionResponse);
 };
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

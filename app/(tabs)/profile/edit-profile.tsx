@@ -1,14 +1,17 @@
+import { usePlayer } from '@/context/player-context';
 import { Colors } from '@/constants/theme';
+import { getMySubscriptionAPI, MySubscriptionResponse } from '@/services/paymentService';
 import { updateProfileAPI } from "@/services/profileService";
 import { getPresignedUploadUrl, uploadFileToMinIO } from "@/services/storageService";
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { usePlayer } from '@/context/player-context';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import {
-    Alert, Image, Platform,
+    ActivityIndicator,
+    Image,
+    Platform,
     SafeAreaView,
     ScrollView,
     StatusBar,
@@ -19,6 +22,17 @@ import {
     View
 } from 'react-native';
 import Toast from 'react-native-root-toast';
+
+function formatSubscriptionDate(date?: string | null) {
+    if (!date) return '--/--/----';
+    const [year, month, day] = date.split('-');
+    if (!year || !month || !day) return date;
+    return `${day}/${month}/${year}`;
+}
+
+function formatPrice(price?: number) {
+    return `${(price ?? 0).toLocaleString('vi-VN')} VND`;
+}
 
 export default function EditProfileScreen() {
     const router = useRouter();
@@ -34,13 +48,37 @@ export default function EditProfileScreen() {
     const [displayName, setDisplayName] = useState((params.name as string) || '');
     const [avatarFile, setAvatarFile] = useState<any>(null); // Ảnh mới user vừa chọn
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [subscription, setSubscription] = useState<MySubscriptionResponse | null>(null);
+    const [isLoadingSubscription, setIsLoadingSubscription] = useState(true);
 
     // Ảnh hiển thị (ưu tiên ảnh mới chọn, nếu không có thì lấy ảnh cũ từ params)
     const currentPreviewUrl = avatarFile ? avatarFile.uri : (params.avatar as string);
+    const isPremiumActive =
+        Boolean(subscription?.isActive) &&
+        subscription?.subscriptionType === 'PREMIUM';
+
+    const loadSubscription = useCallback(async () => {
+        setIsLoadingSubscription(true);
+        try {
+            const response = await getMySubscriptionAPI();
+            setSubscription(response);
+        } catch (error) {
+            console.log('=> Load subscription error:', error);
+            setSubscription(null);
+        } finally {
+            setIsLoadingSubscription(false);
+        }
+    }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            loadSubscription();
+        }, [loadSubscription])
+    );
 
     // Hàm chọn ảnh mới
     const pickImage = async () => {
-        let result = await ImagePicker.launchImageLibraryAsync({
+        const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
             allowsEditing: true,
             aspect: [1, 1], // Ép cắt 1:1 cho avatar
@@ -114,7 +152,10 @@ export default function EditProfileScreen() {
                 
                 {/* AVATAR UPLOAD */}
                 <View style={styles.avatarContainer}>
-                    <TouchableOpacity onPress={pickImage} style={styles.avatarWrapper}>
+                    <TouchableOpacity
+                        onPress={pickImage}
+                        style={[styles.avatarWrapper, isPremiumActive && styles.avatarWrapperPremium]}
+                    >
                         {currentPreviewUrl ? (
                             <Image 
                                 source={{ uri: currentPreviewUrl }} 
@@ -130,6 +171,76 @@ export default function EditProfileScreen() {
                         </View>
                     </TouchableOpacity>
                     <Text style={styles.avatarPrompt}>Tap to change avatar</Text>
+                </View>
+
+                <View style={[styles.subscriptionCard, isPremiumActive && styles.subscriptionCardActive]}>
+                    <View style={styles.subscriptionTopRow}>
+                        <View style={styles.subscriptionIconWrap}>
+                            {isLoadingSubscription ? (
+                                <ActivityIndicator size="small" color="#FFD700" />
+                            ) : (
+                                <Ionicons
+                                    name={isPremiumActive ? "diamond" : "diamond-outline"}
+                                    size={18}
+                                    color={isPremiumActive ? "#FFD700" : Colors.gray}
+                                />
+                            )}
+                        </View>
+
+                        <View style={styles.subscriptionContent}>
+                            <Text style={styles.subscriptionLabel}>SUBSCRIPTION</Text>
+                            <Text style={styles.subscriptionTitle}>
+                                {isPremiumActive ? subscription?.planName || 'Premium' : 'Free Account'}
+                            </Text>
+                            <Text style={styles.subscriptionSubtitle}>
+                                {isPremiumActive
+                                    ? `Goi ${subscription?.subscriptionType} dang hoat dong`
+                                    : 'Tai khoan cua ban hien chua co goi Premium'}
+                            </Text>
+                        </View>
+
+                        {isPremiumActive ? (
+                            <View style={styles.activeBadge}>
+                                <Ionicons name="checkmark-circle" size={14} color="#0B2319" />
+                                <Text style={styles.activeBadgeText}>ACTIVE</Text>
+                            </View>
+                        ) : null}
+                    </View>
+
+                    {isPremiumActive ? (
+                        <>
+                            <View style={styles.subscriptionDivider} />
+
+                            <View style={styles.subscriptionMetaGrid}>
+                                <View style={styles.subscriptionMetaItem}>
+                                    <Text style={styles.subscriptionMetaLabel}>Price</Text>
+                                    <Text style={styles.subscriptionMetaValue}>
+                                        {formatPrice(subscription?.price)}
+                                    </Text>
+                                </View>
+                                <View style={styles.subscriptionMetaItem}>
+                                    <Text style={styles.subscriptionMetaLabel}>Start</Text>
+                                    <Text style={styles.subscriptionMetaValue}>
+                                        {formatSubscriptionDate(subscription?.startDate)}
+                                    </Text>
+                                </View>
+                                <View style={styles.subscriptionMetaItem}>
+                                    <Text style={styles.subscriptionMetaLabel}>End</Text>
+                                    <Text style={styles.subscriptionMetaValue}>
+                                        {formatSubscriptionDate(subscription?.endDate)}
+                                    </Text>
+                                </View>
+                            </View>
+
+                            <TouchableOpacity
+                                style={styles.subscriptionAction}
+                                onPress={() => router.push('/(tabs)/profile/my-subscription' as any)}
+                            >
+                                <Text style={styles.subscriptionActionText}>View subscription</Text>
+                                <Ionicons name="chevron-forward" size={16} color={Colors.white} />
+                            </TouchableOpacity>
+                        </>
+                    ) : null}
                 </View>
 
                 {/* FORM FIELDS */}
@@ -208,6 +319,15 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         position: 'relative',
     },
+    avatarWrapperPremium: {
+        borderWidth: 2,
+        borderColor: '#FACC15',
+        shadowColor: '#FACC15',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.24,
+        shadowRadius: 10,
+        elevation: 6,
+    },
     avatarImage: {
         width: '100%',
         height: '100%',
@@ -240,6 +360,113 @@ const styles = StyleSheet.create({
         marginTop: 12,
         fontSize: 13,
         color: Colors.gray,
+    },
+    subscriptionCard: {
+        backgroundColor: '#101010',
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: '#202020',
+        padding: 16,
+        marginBottom: 26,
+        gap: 14,
+    },
+    subscriptionCardActive: {
+        backgroundColor: '#12100A',
+        borderColor: '#4A3A0B',
+    },
+    subscriptionTopRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 12,
+    },
+    subscriptionIconWrap: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: '#1A1A1A',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    subscriptionContent: {
+        flex: 1,
+        gap: 2,
+    },
+    subscriptionLabel: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: Colors.gray,
+        letterSpacing: 1.4,
+    },
+    subscriptionTitle: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: Colors.white,
+    },
+    subscriptionSubtitle: {
+        fontSize: 12,
+        color: Colors.grayLight,
+        lineHeight: 18,
+    },
+    activeBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        backgroundColor: '#B7F7D1',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 999,
+    },
+    activeBadgeText: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#0B2319',
+        letterSpacing: 1,
+    },
+    subscriptionDivider: {
+        height: 1,
+        backgroundColor: '#2A2A2A',
+    },
+    subscriptionMetaGrid: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 10,
+    },
+    subscriptionMetaItem: {
+        flex: 1,
+        backgroundColor: '#171717',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#242424',
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        gap: 4,
+    },
+    subscriptionMetaLabel: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: Colors.gray,
+        letterSpacing: 1,
+    },
+    subscriptionMetaValue: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: Colors.white,
+    },
+    subscriptionAction: {
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: '#191919',
+        borderWidth: 1,
+        borderColor: '#2D2D2D',
+        paddingHorizontal: 14,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    subscriptionActionText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: Colors.white,
     },
     fieldLabel: {
         fontSize: 11,

@@ -1,6 +1,5 @@
 import apiClient from "@/api/apiClient";
 import { BASE_URL } from "@/constants/baseURL";
-import { Person } from "./listService";
 import { TrackContentType } from "./searchService";
 
 export interface AlbumDetail {
@@ -8,17 +7,21 @@ export interface AlbumDetail {
   title: string;
   thumbnailUrl: string;
   releaseYear?: number;
-  artist?: Person; // In mock we use artist, in backend might be owner/artist
+  artistName?: string;
   tracks: TrackContentType[];
 }
 
-export const getAlbumDetailAPI = async (id: number): Promise<AlbumDetail> => {
+export const getAlbumDetailAPI = async (
+  id: number,
+): Promise<TrackContentType[]> => {
   try {
-    console.log(`GET ALBUMDETAILAPI : ${BASE_URL}/api/v1/album/${id}`);
-    const res = await apiClient.get(`${BASE_URL}/api/v1/album/${id}`);
-    return res.data;
+    console.log(`GET ALBUMDETAILAPI : ${BASE_URL}/api/v1/album-track/${id}`);
+    const res = await apiClient.get(`${BASE_URL}/api/v1/album-track/${id}`);
+    console.log("Response GetAlbumDetailAPI: ", res.data);
+    return res.data as TrackContentType[];
   } catch (error) {
-    console.log(`Mocking album data for id: ${id}`);
+    throw error;
+    /*
     // Return mock data for UI to work based on the provided screenshot
     return {
       id: id,
@@ -61,5 +64,6 @@ export const getAlbumDetailAPI = async (id: number): Promise<AlbumDetail> => {
         },
       ],
     };
+    */
   }
 };

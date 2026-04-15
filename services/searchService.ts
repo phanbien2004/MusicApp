@@ -1,5 +1,6 @@
 import apiClient from '@/api/apiClient';
 import { BASE_URL } from "@/constants/baseURL";
+import { CurrentTrack } from '@/context/currentTrack-context';
 
 export interface SearchRequest {
     keyword: string;
@@ -26,7 +27,13 @@ export interface AlbumContentType {
     id: number,
     title: string,
     thumbnailUrl: string,
-    releaseYear: number
+    releaseYear: number,
+    artist?: {
+        id: number,
+        avatarUrl: string,
+        name: string,
+        followed: boolean
+    }
 }
 
 export interface MemberContentType {
@@ -98,9 +105,6 @@ export async function searchAPI(data: SearchRequest): Promise<SearchResponse> {
     console.log("Response SearchAPI: ", res.data);
     return res.data
 }
-
-
-import { CurrentTrack } from '@/context/currentTrack-context';
 export const searchTrack = async (id : any) : Promise<CurrentTrack> => {
     console.log("Search Track");
     const res = await apiClient.get(`/api/v1/track?trackId=${id}`);

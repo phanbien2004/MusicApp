@@ -16,6 +16,7 @@ import {
 import { useCurrentTrack } from '@/context/currentTrack-context';
 import { useJam } from '@/context/jam-context';
 import { NotificationDTO, useNotifications } from '@/context/notification-context';
+import { usePlayer } from '@/context/player-context';
 import { acceptFriendAPI } from '@/services/friendService';
 import { getJam, joinJamSessionByIdAPI } from '@/services/jamService';
 
@@ -25,6 +26,7 @@ export default function NotificationsScreen() {
     const [acceptedIds, setAcceptedIds] = useState<string[]>([]);
     const { setActiveSession } = useJam();
     const { setCurrentTrack } = useCurrentTrack()!;
+    const { setLastActiveTab } = usePlayer();
 
     // Mark as read when focusing the screen
     useFocusEffect(
@@ -56,6 +58,8 @@ export default function NotificationsScreen() {
                         const isPlaying   = dataJam.jamTrack.playing  ?? false;
                         console.log("[JamSync] seekPosition:", seekPosition, "| isPlaying:", isPlaying);
                         setCurrentTrack(dataJam.jamTrack, true);
+                        // Đặt tab đang sáng thành JAM trước khi navigate
+                        setLastActiveTab('jam');
                         router.push({
                             pathname: '/jam/jamroom',
                             params: {

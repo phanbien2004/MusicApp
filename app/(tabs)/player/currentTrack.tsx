@@ -1,19 +1,20 @@
 import { Colors } from '@/constants/theme';
 import { USER_ID_STORAGE_KEY } from '@/constants/storageKeys';
-import { useCurrentTrack } from '@/context/currentTrack-context';
+import { CurrentTrack, useCurrentTrack } from '@/context/currentTrack-context';
 import { usePlayer } from '@/context/player-context';
 import { addTrackToPlayListAPI, createPlayListAPI, getMemberPlayListAPI, getPlayListDetailAPI } from '@/services/listService';
+import { searchTrack } from '@/services/searchService';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Slider from '@react-native-community/slider';
 import { useAudioPlayerStatus } from 'expo-audio';
 import { useRouter } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
-    Animated,
     Dimensions,
+    FlatList,
     Image,
     Keyboard,
     Modal,
@@ -29,7 +30,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width, height } = Dimensions.get('window');
 const ARTWORK_SIZE = width - 80;
-const QUEUE_HEIGHT = height * 0.85;
 
 // Helper format thời gian
 const parseStoredUserId = (value: string | null) => {
@@ -53,6 +53,34 @@ const formatTime = (timeInSeconds: number) => {
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
 };
 
+const resolvePrimaryContributor = (contributors: any[] | undefined | null) => {
+    if (!Array.isArray(contributors)) {
+        return null;
+    }
+
+    return contributors.find((contributor) => contributor?.role === 'OWNER' && contributor?.id)
+        ?? contributors.find((contributor) => contributor?.id)
+        ?? null;
+};
+
+const getDisplayContributors = (contributors: any[] | undefined | null) => {
+    if (!Array.isArray(contributors) || contributors.length === 0) {
+        return {
+            owners: [],
+            featured: [],
+        };
+    }
+
+    const normalizedContributors = contributors.filter((contributor) => contributor?.name);
+    const owners = normalizedContributors.filter((contributor) => contributor?.role === 'OWNER');
+    const featured = normalizedContributors.filter((contributor) => contributor?.role === 'FEATURED');
+
+    return {
+        owners: owners.length > 0 ? owners : normalizedContributors.slice(0, 1),
+        featured,
+    };
+};
+
 export default function CurrentTrackScreen() {
     const context = useCurrentTrack();
     if (!context || !context.currentTrack || !context.player) {
@@ -62,19 +90,64 @@ export default function CurrentTrackScreen() {
             </View>
         );
     }
-    return <CurrentTrackUI currentTrack={context.currentTrack} player={context.player} />;
+    return <CurrentTrackUI context={context as NonNullCurrentTrackContext} />;
 }
 
-function CurrentTrackUI({ currentTrack, player }: { currentTrack: any, player: any }) {
+type NonNullCurrentTrackContext = Omit<NonNullable<ReturnType<typeof useCurrentTrack>>, 'currentTrack'> & {
+    currentTrack: CurrentTrack;
+};
+
+function CurrentTrackUI({ context }: { context: NonNullCurrentTrackContext }) {
+    const {
+        currentTrack,
+        player,
+        queue,
+        queueCursor,
+        activePlaybackContext,
+        playNextInQueue,
+        playPreviousInQueue,
+        seekTo,
+        setCurrentTrack,
+    } = context;
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const status = useAudioPlayerStatus(player);
     const { lastActiveTab } = usePlayer();
+    const { owners, featured } = getDisplayContributors(currentTrack.contributors);
 
     // Navigate back to whichever tab was active before opening the player
     const handleClose = () => {
         const tab = lastActiveTab || 'home';
         router.navigate(`/(tabs)/${tab}` as any);
+    };
+
+    const handleOpenArtist = async (contributor?: any) => {
+        let artistId = contributor?.id;
+
+        if (!artistId && currentTrack?.id) {
+            try {
+                const fullTrack = await searchTrack(currentTrack.id);
+                const matchedContributor = Array.isArray(fullTrack?.contributors)
+                    ? fullTrack.contributors.find((candidate: any) =>
+                        candidate?.name === contributor?.name
+                        && (!contributor?.role || candidate?.role === contributor.role)
+                    )
+                    : null;
+                artistId = matchedContributor?.id ?? resolvePrimaryContributor(fullTrack?.contributors)?.id;
+            } catch (error) {
+                console.error('Failed to resolve artist from current track:', error);
+            }
+        }
+
+        if (!artistId) {
+            Alert.alert('Không tìm thấy thông tin tác giả cho bài hát này.');
+            return;
+        }
+
+        router.push({
+            pathname: '/profile/artist-profile',
+            params: { id: String(artistId) },
+        });
     };
 
     // --- STATES ---
@@ -93,8 +166,6 @@ function CurrentTrackUI({ currentTrack, player }: { currentTrack: any, player: a
     const [isRepeat, setIsRepeat] = useState(false);
 
     const [showQueue, setShowQueue] = useState(false);
-    const slideAnim = useRef(new Animated.Value(QUEUE_HEIGHT)).current;
-    const overlayAnim = useRef(new Animated.Value(0)).current;
 
     // --- LOGIC: CHECK IF TRACK EXISTS IN PLAYLIST ---
     const isTrackAlreadyInList = (playlist: any) => {
@@ -153,7 +224,7 @@ function CurrentTrackUI({ currentTrack, player }: { currentTrack: any, player: a
                         : pl
                 )
             );
-        } catch (error) {
+        } catch {
             Alert.alert('Error', 'Could not add track to playlist.');
         }
     };
@@ -213,8 +284,18 @@ function CurrentTrackUI({ currentTrack, player }: { currentTrack: any, player: a
     };
 
     const displayPosition = isSeeking ? seekValue : status.currentTime;
-    const duration = status.duration > 0 ? status.duration : 1;
- 
+    const rawDuration = status.duration > 0 ? status.duration : 0;
+    const duration = rawDuration > 0 ? rawDuration : 1; // slider maximumValue must be > 0
+    const hasPreviousTrack = queueCursor > 0;
+    const hasNextTrack = queueCursor >= 0 ? queueCursor < queue.length - 1 : queue.length > 0;
+
+    const handleQueueTrackSelect = async (track: any) => {
+        await setCurrentTrack(track, false, {
+            ...(activePlaybackContext || { source: 'queue' }),
+            source: 'queue',
+        });
+        setShowQueue(false);
+    };
 
     return (
         <View style={[styles.safeArea, { paddingTop: insets.top }]}>
@@ -226,7 +307,9 @@ function CurrentTrackUI({ currentTrack, player }: { currentTrack: any, player: a
                     <Ionicons name="chevron-down" size={28} color={Colors.white} />
                 </TouchableOpacity>
                 <Text style={styles.nowPlayingText}>NOW PLAYING</Text>
-                <TouchableOpacity style={styles.circleBtn}><Ionicons name="ellipsis-horizontal" size={24} color={Colors.white} /></TouchableOpacity>
+                <TouchableOpacity style={styles.circleBtn} onPress={() => setShowQueue(true)}>
+                    <Ionicons name="list" size={24} color={Colors.white} />
+                </TouchableOpacity>
             </View>
 
             {/* ARTWORK */}
@@ -249,7 +332,33 @@ function CurrentTrackUI({ currentTrack, player }: { currentTrack: any, player: a
                             <Ionicons name="add-circle-outline" size={32} color={Colors.white} />
                         </TouchableOpacity>
                     </View>
-                    <Text style={styles.artistName}>{currentTrack.contributors?.at(0)?.name || 'Artist'}</Text>
+                    {owners.length === 0 && featured.length === 0 ? (
+                        <Text style={styles.artistName}>Artist</Text>
+                    ) : (
+                        <View style={styles.artistRow}>
+                            {owners.map((contributor: any, index: number) => (
+                                <React.Fragment key={`owner-${contributor?.id ?? contributor?.name ?? index}`}>
+                                    {index > 0 && <Text style={styles.artistSeparator}>, </Text>}
+                                    <TouchableOpacity onPress={() => handleOpenArtist(contributor)}>
+                                        <Text style={styles.artistName}>{contributor.name}</Text>
+                                    </TouchableOpacity>
+                                </React.Fragment>
+                            ))}
+                            {featured.length > 0 && (
+                                <>
+                                    <Text style={styles.artistSeparator}> feat. </Text>
+                                    {featured.map((contributor: any, index: number) => (
+                                        <React.Fragment key={`featured-${contributor?.id ?? contributor?.name ?? index}`}>
+                                            {index > 0 && <Text style={styles.artistSeparator}>, </Text>}
+                                            <TouchableOpacity onPress={() => handleOpenArtist(contributor)}>
+                                                <Text style={styles.artistName}>{contributor.name}</Text>
+                                            </TouchableOpacity>
+                                        </React.Fragment>
+                                    ))}
+                                </>
+                            )}
+                        </View>
+                    )}
                 </View>
 
                 {/* SLIDER */}
@@ -264,23 +373,36 @@ function CurrentTrackUI({ currentTrack, player }: { currentTrack: any, player: a
                         thumbTintColor={Colors.white}
                         onSlidingStart={() => setIsSeeking(true)}
                         onValueChange={(v) => setSeekValue(v)}
-                        onSlidingComplete={(v) => { player.seekTo(v); setIsSeeking(false); }}
+                        onSlidingComplete={async (v) => {
+                            await seekTo(v);
+                            setIsSeeking(false);
+                        }}
                     />
                     <View style={styles.timeRow}>
                         <Text style={styles.timeText}>{formatTime(displayPosition)}</Text>
-                        <Text style={styles.timeText}>{formatTime(duration)}</Text>
+                        <Text style={styles.timeText}>{formatTime(rawDuration)}</Text>
                     </View>
                 </View>
 
                 <View style={styles.controls}>
                     <TouchableOpacity onPress={() => setIsShuffle(!isShuffle)}><Ionicons name="shuffle" size={26} color={isShuffle ? Colors.teal : Colors.gray} /></TouchableOpacity>
-                    <TouchableOpacity><Ionicons name="play-skip-back" size={36} color={Colors.white} /></TouchableOpacity>
+                    <TouchableOpacity disabled={!hasPreviousTrack} onPress={playPreviousInQueue} style={!hasPreviousTrack ? styles.disabledControl : undefined}>
+                        <Ionicons name="play-skip-back" size={36} color={hasPreviousTrack ? Colors.white : Colors.gray} />
+                    </TouchableOpacity>
                     <TouchableOpacity style={styles.playBtn} onPress={handlePlayPause}>
                         <Ionicons name={status.playing ? 'pause' : 'play'} size={40} color={Colors.white} />
                     </TouchableOpacity>
-                    <TouchableOpacity><Ionicons name="play-skip-forward" size={36} color={Colors.white} /></TouchableOpacity>
+                    <TouchableOpacity
+                        disabled={!hasNextTrack}
+                        onPress={() => playNextInQueue({ userInitiated: true })}
+                        style={!hasNextTrack ? styles.disabledControl : undefined}
+                    >
+                        <Ionicons name="play-skip-forward" size={36} color={hasNextTrack ? Colors.white : Colors.gray} />
+                    </TouchableOpacity>
                     <TouchableOpacity onPress={() => setIsRepeat(!isRepeat)}><Ionicons name="repeat" size={26} color={isRepeat ? Colors.teal : Colors.gray} /></TouchableOpacity>
                 </View>
+
+
             </View>
 
             {/* ─── MODAL: ADD TO PLAYLIST (2 SECTIONS) ─── */}
@@ -366,9 +488,9 @@ function CurrentTrackUI({ currentTrack, player }: { currentTrack: any, player: a
                                                     {item.title}
                                                 </Text>
                                                 {isSaved ? (
-                                                    <Text style={styles.savedLabel}>Da duoc them vao playlist nay</Text>
+                                                    <Text style={styles.savedLabel}>Đã được thêm vào playlist này</Text>
                                                 ) : (
-                                                    <Text style={styles.availableLabel}>Co the them vao playlist nay</Text>
+                                                    <Text style={styles.availableLabel}>Có thể thêm vào playlist này</Text>
                                                 )}
                                                 <Text style={styles.trackCount}>
                                                     {item.tracks?.length ?? 0} {item.tracks?.length === 1 ? 'track' : 'tracks'}
@@ -454,6 +576,65 @@ function CurrentTrackUI({ currentTrack, player }: { currentTrack: any, player: a
                     </View>
                 </View>
             </Modal>
+
+            <Modal visible={showQueue} transparent animationType="slide">
+                <View style={styles.modalOverlay}>
+                    <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowQueue(false)} />
+                    <View style={[styles.queueSheet, { paddingBottom: insets.bottom + 20 }]}>
+                        <View style={styles.dragHandle} />
+                        <View style={styles.queueHeader}>
+                            <Text style={styles.modalTitle}>Queue</Text>
+                            <Text style={styles.queueSubtitle}>{queue.length} tracks loaded</Text>
+                        </View>
+
+                        {queue.length === 0 ? (
+                            <View style={styles.queueEmptyState}>
+                                <Ionicons name="list-outline" size={40} color={Colors.gray} />
+                                <Text style={styles.emptyListText}>Queue chưa có dữ liệu.</Text>
+                            </View>
+                        ) : (
+                            <FlatList
+                                data={queue}
+                                keyExtractor={(item, index) => `${item.id}-${index}`}
+                                contentContainerStyle={styles.queueListContent}
+                                renderItem={({ item, index }) => {
+                                    const isActive = item.id === currentTrack.id;
+
+                                    return (
+                                        <TouchableOpacity
+                                            style={[styles.queueItem, isActive && styles.queueItemActive]}
+                                            onPress={() => handleQueueTrackSelect(item)}
+                                        >
+                                            {item.thumbnailUrl ? (
+                                                <Image source={{ uri: item.thumbnailUrl }} style={styles.queueThumb} />
+                                            ) : (
+                                                <View style={[styles.queueThumb, styles.queueThumbFallback]}>
+                                                    <Ionicons name="musical-notes" size={18} color="#555" />
+                                                </View>
+                                            )}
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={[styles.queueTitle, isActive && styles.queueTitleActive]} numberOfLines={1}>
+                                                    {item.title}
+                                                </Text>
+                                                <Text style={styles.queueArtist} numberOfLines={1}>
+                                                    {Array.isArray(item.contributors) && item.contributors.length > 0
+                                                        ? item.contributors.map((contributor) => contributor.name).join(', ')
+                                                        : 'Unknown Artist'}
+                                                </Text>
+                                            </View>
+                                            {isActive ? (
+                                                <Ionicons name="musical-notes" size={18} color={Colors.teal} />
+                                            ) : (
+                                                <Ionicons name="chevron-forward" size={18} color={Colors.gray} />
+                                            )}
+                                        </TouchableOpacity>
+                                    );
+                                }}
+                            />
+                        )}
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -471,17 +652,33 @@ const styles = StyleSheet.create({
     songInfoContainer: { marginBottom: 15 },
     songTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     songTitle: { color: Colors.white, fontSize: 26, fontWeight: 'bold', flex: 1, marginRight: 10 },
+    artistRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginTop: 4 },
     artistName: { color: Colors.teal, fontSize: 16, marginTop: 4 },
+    artistSeparator: { color: Colors.gray, fontSize: 16, marginTop: 4 },
     sliderContainer: { marginBottom: 20 },
-    slider: { width: width - 40, alignSelf: 'center', height: 40 },
+    slider: { width: width - 60, alignSelf: 'center', height: 40 },
     timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -5 },
     timeText: { color: '#888', fontSize: 12 },
     controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
+    disabledControl: { opacity: 0.45 },
     playBtn: { width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.teal, alignItems: 'center', justifyContent: 'center' },
+
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
     addToListSheet: { backgroundColor: '#181818', borderTopLeftRadius: 30, borderTopRightRadius: 30, height: height * 0.6 },
+    queueSheet: { backgroundColor: '#181818', borderTopLeftRadius: 30, borderTopRightRadius: 30, maxHeight: height * 0.7 },
     modalTitle: { color: Colors.white, fontSize: 18, fontWeight: '800', textAlign: 'center', marginVertical: 15 },
+    queueHeader: { alignItems: 'center', marginBottom: 8 },
+    queueSubtitle: { color: Colors.gray, fontSize: 12, marginTop: -6, marginBottom: 12 },
     dragHandle: { width: 40, height: 4, backgroundColor: '#444', borderRadius: 2, alignSelf: 'center', marginTop: 12, marginBottom: 4 },
+    queueEmptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 32, gap: 10 },
+    queueListContent: { paddingHorizontal: 16, paddingBottom: 12 },
+    queueItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 14, marginBottom: 8, backgroundColor: '#202020' },
+    queueItemActive: { borderWidth: 1, borderColor: Colors.teal + '55', backgroundColor: Colors.teal + '14' },
+    queueThumb: { width: 48, height: 48, borderRadius: 10, backgroundColor: '#222' },
+    queueThumbFallback: { alignItems: 'center', justifyContent: 'center' },
+    queueTitle: { color: Colors.white, fontSize: 14, fontWeight: '700' },
+    queueTitleActive: { color: Colors.teal },
+    queueArtist: { color: Colors.gray, fontSize: 12, marginTop: 4 },
     playlistItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: '#222', gap: 15, paddingHorizontal: 20 },
     playlistThumbMini: { width: 48, height: 48, borderRadius: 8, backgroundColor: '#222', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
     playlistTitleText: { color: Colors.white, fontSize: 15, fontWeight: '600' },

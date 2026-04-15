@@ -1,9 +1,9 @@
+import { usePlayer } from '@/context/player-context';
 import { Colors } from '@/constants/theme';
 import { getMySubscriptionAPI, MySubscriptionResponse } from '@/services/paymentService';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { usePlayer } from '@/context/player-context';
 import {
     ActivityIndicator,
     Platform,
@@ -15,39 +15,38 @@ import {
     View,
 } from 'react-native';
 
-// ─── Helper ───────────────────────────────────────────────────────
-
-/** Format "YYYY-MM-DD" → "DD/MM/YYYY" */
-function formatDate(dateStr: string): string {
-    if (!dateStr) return '—';
-    const [y, m, d] = dateStr.split('-');
-    return `${d}/${m}/${y}`;
+function formatDate(dateStr?: string | null): string {
+    if (!dateStr) return '--/--/----';
+    const [year, month, day] = dateStr.split('-');
+    if (!year || !month || !day) return dateStr;
+    return `${day}/${month}/${year}`;
 }
 
-/** Tính số ngày còn lại */
-function daysRemaining(endDateStr: string): number {
+function isValidDateString(dateStr?: string | null): dateStr is string {
+    return Boolean(dateStr && !Number.isNaN(new Date(dateStr).getTime()));
+}
+
+function daysRemaining(endDateStr?: string | null): number {
+    if (!isValidDateString(endDateStr)) return 0;
     const end = new Date(endDateStr);
     const now = new Date();
     const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     return Math.max(0, diff);
 }
 
-// ─── Main Screen ──────────────────────────────────────────────────
-
 export default function MySubscriptionScreen() {
     const router = useRouter();
+    const { lastActiveTab } = usePlayer();
 
     const [subscription, setSubscription] = useState<MySubscriptionResponse | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const { lastActiveTab } = usePlayer();
 
     const handleBack = () => {
         const tab = lastActiveTab || 'profile';
         router.navigate(`/(tabs)/${tab}` as any);
     };
 
-    // Tự reload mỗi lần màn hình được focus
     useFocusEffect(
         useCallback(() => {
             const fetchSubscription = async () => {
@@ -63,41 +62,49 @@ export default function MySubscriptionScreen() {
                     setIsLoading(false);
                 }
             };
+
             fetchSubscription();
         }, [])
     );
 
+    const isPremiumActive =
+        Boolean(subscription?.isActive) &&
+        subscription?.subscriptionType === 'PREMIUM';
+
     const remaining = subscription ? daysRemaining(subscription.endDate) : 0;
 
-    // ── Progress bar: phần trăm thời gian còn lại ──
     const progressPercent = (() => {
-        if (!subscription) return 0;
+        if (
+            !subscription ||
+            !isPremiumActive ||
+            !isValidDateString(subscription.startDate) ||
+            !isValidDateString(subscription.endDate)
+        ) {
+            return 0;
+        }
+
         const start = new Date(subscription.startDate).getTime();
         const end = new Date(subscription.endDate).getTime();
         const now = Date.now();
         const total = end - start;
+        if (total <= 0) return 0;
+
         const elapsed = now - start;
-        const pct = Math.max(0, Math.min(1, 1 - elapsed / total));
-        return pct; // 1.0 = mới đăng ký, 0.0 = hết hạn
+        return Math.max(0, Math.min(1, 1 - elapsed / total));
     })();
 
     return (
         <SafeAreaView style={styles.safeArea}>
             <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
 
-            {/* ─── HEADER ─── */}
             <View style={styles.header}>
-                <TouchableOpacity
-                    style={styles.backBtn}
-                    onPress={handleBack}
-                >
+                <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
                     <Ionicons name="chevron-back" size={20} color={Colors.white} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>My Premium Subscription</Text>
-                <View style={{ width: 36 }} />
+                <View style={styles.headerSpacer} />
             </View>
 
-            {/* ─── CONTENT ─── */}
             {isLoading ? (
                 <View style={styles.centered}>
                     <ActivityIndicator size="large" color={Colors.teal} />
@@ -108,44 +115,37 @@ export default function MySubscriptionScreen() {
                     <Ionicons name="alert-circle-outline" size={48} color="#FF6B6B" />
                     <Text style={styles.errorText}>{error}</Text>
                 </View>
-            ) : subscription ? (
+            ) : subscription && isPremiumActive ? (
                 <View style={styles.content}>
-
-                    {/* ── Status Badge ── */}
                     <View style={styles.statusBadge}>
                         <Ionicons name="checkmark-circle" size={16} color={Colors.teal} />
                         <Text style={styles.statusText}>ACTIVE</Text>
                     </View>
 
-                    {/* ── Plan Card ── */}
                     <View style={styles.planCard}>
-                        {/* Crown icon + name */}
                         <View style={styles.planHeader}>
                             <View style={styles.crownCircle}>
                                 <Ionicons name="star" size={22} color="#FFD700" />
                             </View>
-                            <View style={{ flex: 1 }}>
+                            <View style={styles.planInfo}>
                                 <Text style={styles.planLabel}>SUBSCRIPTION PLAN</Text>
-                                <Text style={styles.planName}>{subscription.planName}</Text>
+                                <Text style={styles.planName}>{subscription.planName || 'Premium'}</Text>
                             </View>
                             <View style={styles.priceBadge}>
                                 <Text style={styles.priceText}>
-                                    {subscription.price.toLocaleString('vi-VN')}₫
+                                    {subscription.price.toLocaleString('vi-VN')} VND
                                 </Text>
                             </View>
                         </View>
 
                         <View style={styles.divider} />
 
-                        {/* Dates */}
                         <View style={styles.datesRow}>
                             <View style={styles.dateItem}>
                                 <Ionicons name="calendar-outline" size={16} color={Colors.gray} />
                                 <View>
                                     <Text style={styles.dateLabel}>Start Date</Text>
-                                    <Text style={styles.dateValue}>
-                                        {formatDate(subscription.startDate)}
-                                    </Text>
+                                    <Text style={styles.dateValue}>{formatDate(subscription.startDate)}</Text>
                                 </View>
                             </View>
                             <View style={styles.dateSeparator} />
@@ -153,20 +153,17 @@ export default function MySubscriptionScreen() {
                                 <Ionicons name="time-outline" size={16} color={Colors.gray} />
                                 <View>
                                     <Text style={styles.dateLabel}>Expiration Date</Text>
-                                    <Text style={styles.dateValue}>
-                                        {formatDate(subscription.endDate)}
-                                    </Text>
+                                    <Text style={styles.dateValue}>{formatDate(subscription.endDate)}</Text>
                                 </View>
                             </View>
                         </View>
 
                         <View style={styles.divider} />
 
-                        {/* Progress bar */}
                         <View style={styles.progressSection}>
                             <View style={styles.progressLabelRow}>
                                 <Text style={styles.progressLabel}>Time Remaining</Text>
-                                <Text style={styles.remainingDays}>
+                                <Text style={[styles.remainingDays, remaining <= 7 && styles.remainingDaysWarning]}>
                                     {remaining > 0 ? `${remaining} days` : 'Expired'}
                                 </Text>
                             </View>
@@ -175,29 +172,36 @@ export default function MySubscriptionScreen() {
                                     style={[
                                         styles.progressFill,
                                         { width: `${progressPercent * 100}%` },
-                                        remaining <= 7 && { backgroundColor: '#FF9500' }, // cảnh báo gần hết
+                                        remaining > 0 && remaining <= 7 && styles.progressFillWarning,
                                     ]}
                                 />
                             </View>
                         </View>
                     </View>
 
-                    {/* ── Info note ── */}
                     <View style={styles.infoBox}>
                         <Ionicons name="information-circle-outline" size={16} color={Colors.gray} />
                         <Text style={styles.infoText}>
                             The plan will automatically expire on {formatDate(subscription.endDate)}.
-                            You can renew before it expires.
+                            {' '}You can renew before it expires.
                         </Text>
                     </View>
-
                 </View>
-            ) : null}
+            ) : (
+                <View style={styles.centered}>
+                    <Ionicons name="diamond-outline" size={46} color={Colors.gray} />
+                    <Text style={styles.emptyTitle}>No Active Premium</Text>
+                    <Text style={styles.emptyText}>
+                        Your account does not have an active Premium subscription right now.
+                    </Text>
+                    <TouchableOpacity style={styles.backToSettingsBtn} onPress={handleBack}>
+                        <Text style={styles.backToSettingsText}>Back to Settings</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
         </SafeAreaView>
     );
 }
-
-// ─── Styles ───────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
     safeArea: {
@@ -205,8 +209,6 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.background,
         paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     },
-
-    // Header
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -217,22 +219,27 @@ const styles = StyleSheet.create({
         borderBottomColor: '#1E1E1E',
     },
     backBtn: {
-        width: 36, height: 36, borderRadius: 18,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
         backgroundColor: '#1A1A1A',
-        alignItems: 'center', justifyContent: 'center',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     headerTitle: {
         fontSize: 16,
         fontWeight: '700',
         color: Colors.white,
     },
-
-    // Loading / Error
+    headerSpacer: {
+        width: 36,
+    },
     centered: {
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
         gap: 12,
+        paddingHorizontal: 24,
     },
     loadingText: {
         fontSize: 14,
@@ -244,16 +251,37 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         paddingHorizontal: 32,
     },
-
-    // Content
+    emptyTitle: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: Colors.white,
+    },
+    emptyText: {
+        fontSize: 13,
+        color: Colors.gray,
+        textAlign: 'center',
+        lineHeight: 19,
+        paddingHorizontal: 24,
+    },
+    backToSettingsBtn: {
+        backgroundColor: '#1A1A1A',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#2A2A2A',
+        paddingHorizontal: 18,
+        paddingVertical: 12,
+    },
+    backToSettingsText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: Colors.white,
+    },
     content: {
         flex: 1,
         paddingHorizontal: 20,
         paddingTop: 24,
         gap: 16,
     },
-
-    // Status badge
     statusBadge: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -272,8 +300,6 @@ const styles = StyleSheet.create({
         color: Colors.teal,
         letterSpacing: 1.5,
     },
-
-    // Plan card
     planCard: {
         backgroundColor: '#0D0D0D',
         borderRadius: 20,
@@ -287,10 +313,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 14,
     },
+    planInfo: {
+        flex: 1,
+    },
     crownCircle: {
-        width: 44, height: 44, borderRadius: 22,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         backgroundColor: '#2A2200',
-        alignItems: 'center', justifyContent: 'center',
+        alignItems: 'center',
+        justifyContent: 'center',
         borderWidth: 1,
         borderColor: '#FFD70033',
     },
@@ -319,13 +351,10 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: Colors.teal,
     },
-
     divider: {
         height: 1,
         backgroundColor: '#1E1E1E',
     },
-
-    // Dates
     datesRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -352,8 +381,6 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: Colors.white,
     },
-
-    // Progress
     progressSection: {
         gap: 8,
     },
@@ -371,6 +398,9 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: Colors.teal,
     },
+    remainingDaysWarning: {
+        color: '#FF9500',
+    },
     progressTrack: {
         height: 6,
         backgroundColor: '#1E1E1E',
@@ -382,8 +412,9 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.teal,
         borderRadius: 3,
     },
-
-    // Info box
+    progressFillWarning: {
+        backgroundColor: '#FF9500',
+    },
     infoBox: {
         flexDirection: 'row',
         alignItems: 'flex-start',

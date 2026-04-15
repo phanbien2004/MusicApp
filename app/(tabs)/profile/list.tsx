@@ -3,12 +3,17 @@ import { Colors } from '@/constants/theme';
 import { useCurrentTrack } from '@/context/currentTrack-context';
 import { usePlayer } from '@/context/player-context';
 import {
+    CollaboratorPermission,
+    Person,
     PlayListDetail,
     addCollaboratorToPlayListAPI,
     addTrackToPlayListAPI,
     getPlayListDetailAPI,
+    removeCollaboratorFromPlayListAPI,
     removeTrackFromPlayListAPI,
+    revokeCollaboratorPermissionAPI,
     searchTrackToAddAPI,
+    updateCollaboratorPermissionAPI,
     updatePlayListAPI,
 } from '@/services/listService';
 import { TrackContentType, searchAPI } from '@/services/searchService';
@@ -68,6 +73,28 @@ const PlayingAnimation = () => {
     );
 };
 
+const COLLABORATOR_PERMISSION_OPTIONS: {
+    value: CollaboratorPermission;
+    label: string;
+    description: string;
+}[] = [
+    {
+        value: 'ADD_TRACK',
+        label: 'Add Track',
+        description: 'Can add tracks into this playlist.',
+    },
+    {
+        value: 'REORDER',
+        label: 'Reorder',
+        description: 'Can reorder playlist track positions.',
+    },
+    {
+        value: 'REMOVE_TRACK',
+        label: 'Remove Track',
+        description: 'Can remove tracks from this playlist.',
+    },
+];
+
 export default function PlaylistDetailScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
@@ -108,6 +135,10 @@ export default function PlaylistDetailScreen() {
     const [inviteKeyword, setInviteKeyword] = useState('');
     const [inviteResults, setInviteResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [inviteSheetMode, setInviteSheetMode] = useState<'list' | 'edit'>('list');
+    const [selectedCollaborator, setSelectedCollaborator] = useState<Person | null>(null);
+    const [selectedPermissions, setSelectedPermissions] = useState<CollaboratorPermission[]>([]);
+    const [collaboratorAction, setCollaboratorAction] = useState<'grant' | 'revoke' | 'delete' | null>(null);
 
     const playerContext = usePlayer(); 
     const lastActiveTab = playerContext ? playerContext.lastActiveTab : 'home';
@@ -150,18 +181,24 @@ export default function PlaylistDetailScreen() {
             const firstTrack = { ...detail.tracks[0], trackUrl: (detail.tracks[0] as any).trackUrl };
             await AsyncStorage.setItem('currentPlaylistId', detail.id.toString());
             setActivePlaylistId(detail.id.toString());
-            setCurrentTrack(firstTrack, false);
-            player.play();
+            await setCurrentTrack(firstTrack, false, {
+                source: 'playlist',
+                playlistId: detail.id,
+            });
+        } else if (status.playing) {
+            player.pause();
         } else {
-            status.playing ? player.pause() : player.play();
+            player.play();
         }
     };
 
     const handleTrackSelect = async (item: any) => {
         await AsyncStorage.setItem('currentPlaylistId', detail!.id.toString());
         setActivePlaylistId(detail!.id.toString());
-        setCurrentTrack({ ...item, trackUrl: (item as any).trackUrl }, false);
-        player.play();
+        await setCurrentTrack({ ...item, trackUrl: (item as any).trackUrl }, false, {
+            source: 'playlist',
+            playlistId: detail!.id,
+        });
     };
 
     // --- LOGIC CHỈNH SỬA & COLLAB ---
@@ -178,14 +215,109 @@ export default function PlaylistDetailScreen() {
             await updatePlayListAPI(Number(id), editName.trim(), editDesc.trim(), finalThumbnailKey, isPublic);
             setShowEditModal(false);
             loadDetail();
-        } catch (e) { Alert.alert("Error saving"); } finally { setIsUpdating(false); }
+        } catch { Alert.alert("Error saving"); } finally { setIsUpdating(false); }
     };
 
     const handleAddCollaborator = async (userId: number) => {
         try {
             await addCollaboratorToPlayListAPI(Number(id), [userId]);
             loadDetail();
-        } catch (e) { Alert.alert("Error adding collaborator"); }
+        } catch { Alert.alert("Error adding collaborator"); }
+    };
+
+    const handleCloseInviteModal = () => {
+        setShowInviteModal(false);
+        setInviteSheetMode('list');
+        setSelectedCollaborator(null);
+        setSelectedPermissions([]);
+        setCollaboratorAction(null);
+    };
+
+    const closeCollaboratorModal = () => {
+        setInviteSheetMode('list');
+        setSelectedCollaborator(null);
+        setSelectedPermissions([]);
+        setCollaboratorAction(null);
+    };
+
+    const handleOpenCollaboratorModal = (collaborator: Person) => {
+        setSelectedCollaborator(collaborator);
+        setSelectedPermissions([]);
+        setInviteSheetMode('edit');
+    };
+
+    const handleOpenInviteModal = () => {
+        setInviteSheetMode('list');
+        setSelectedCollaborator(null);
+        setSelectedPermissions([]);
+        setCollaboratorAction(null);
+        setShowInviteModal(true);
+    };
+
+    const togglePermission = (permission: CollaboratorPermission) => {
+        setSelectedPermissions((current) =>
+            current.includes(permission)
+                ? current.filter((item) => item !== permission)
+                : [...current, permission]
+        );
+    };
+
+    const handleCollaboratorPermissionUpdate = async (mode: 'grant' | 'revoke') => {
+        if (!selectedCollaborator || !id) return;
+        if (!selectedPermissions.length) {
+            Alert.alert('Missing permission', 'Please choose at least one permission.');
+            return;
+        }
+
+        try {
+            setCollaboratorAction(mode);
+            const payload = {
+                playlistId: Number(id),
+                collaboratorId: selectedCollaborator.id,
+                permissions: selectedPermissions,
+            };
+
+            if (mode === 'grant') {
+                await updateCollaboratorPermissionAPI(payload);
+            } else {
+                await revokeCollaboratorPermissionAPI(payload);
+            }
+
+            closeCollaboratorModal();
+            await loadDetail();
+        } catch {
+            Alert.alert('Error', mode === 'grant' ? 'Error updating permissions' : 'Error revoking permissions');
+        } finally {
+            setCollaboratorAction(null);
+        }
+    };
+
+    const handleDeleteCollaborator = () => {
+        if (!selectedCollaborator || !id) return;
+
+        Alert.alert(
+            'Remove collaborator',
+            `Remove ${selectedCollaborator.name} from this playlist?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Remove',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            setCollaboratorAction('delete');
+                            await removeCollaboratorFromPlayListAPI(Number(id), [selectedCollaborator.id]);
+                            closeCollaboratorModal();
+                            await loadDetail();
+                        } catch {
+                            Alert.alert('Error', 'Error removing collaborator');
+                        } finally {
+                            setCollaboratorAction(null);
+                        }
+                    },
+                },
+            ]
+        );
     };
 
     const handleRemoveTrack = async () => {
@@ -194,14 +326,14 @@ export default function PlaylistDetailScreen() {
             await removeTrackFromPlayListAPI([Number(id)], selectedTrack.id);
             setShowTrackOptions(false);
             loadDetail();
-        } catch (e) { Alert.alert("Error removing track"); }
+        } catch { Alert.alert("Error removing track"); }
     };
 
     const handleAddTrack = async (trackId: number) => {
         try {
             await addTrackToPlayListAPI([Number(id)], trackId);
             loadDetail();
-        } catch (e) { Alert.alert("Error adding track"); }
+        } catch { Alert.alert("Error adding track"); }
     };
 
     // --- SEARCH EFFECTS ---
@@ -279,7 +411,7 @@ export default function PlaylistDetailScreen() {
                                     </View>
                                 ))}
                                 {canEdit && (
-                                    <TouchableOpacity style={[styles.miniAvatar, styles.addBtnSmall]} onPress={() => setShowInviteModal(true)}>
+                                    <TouchableOpacity style={[styles.miniAvatar, styles.addBtnSmall]} onPress={handleOpenInviteModal}>
                                         <Ionicons name="add" size={16} color="#FFF" />
                                     </TouchableOpacity>
                                 )}
@@ -388,49 +520,168 @@ export default function PlaylistDetailScreen() {
             {/* --- MODAL INVITE --- */}
             <Modal visible={showInviteModal} transparent animationType="slide">
                 <View style={styles.modalOverlay}>
-                    <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowInviteModal(false)} />
-                    <View style={[styles.inviteSheet, { paddingBottom: insets.bottom + 20 }]}>
+                    <TouchableOpacity style={{ flex: 1 }} onPress={handleCloseInviteModal} />
+                    <View style={[(inviteSheetMode === 'edit' ? styles.permissionSheet : styles.inviteSheet), { paddingBottom: insets.bottom + 20 }]}>
                         <View style={styles.modalHandle} />
-                        <View style={styles.collabList}>
-                            <View style={styles.userRowItem}>
-                                <Image source={{ uri: detail.owner?.avatarUrl || 'https://via.placeholder.com/150' }} style={styles.userAvatarPlaceholder} />
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.userNameText}>{detail.owner?.name}</Text>
-                                    <Text style={styles.userRoleLabel}>Owner</Text>
+                        {inviteSheetMode === 'list' ? (
+                            <>
+                                <View style={styles.collabList}>
+                                    <View style={styles.userRowItem}>
+                                        <Image source={{ uri: detail.owner?.avatarUrl || 'https://via.placeholder.com/150' }} style={styles.userAvatarPlaceholder} />
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.userNameText}>{detail.owner?.name}</Text>
+                                            <Text style={styles.userRoleLabel}>Owner</Text>
+                                        </View>
+                                    </View>
+                                    {detail.collaborators?.map((c: Person) => (
+                                        <TouchableOpacity
+                                            key={c.id}
+                                            style={styles.userRowItem}
+                                            activeOpacity={0.82}
+                                            onPress={() => handleOpenCollaboratorModal(c)}
+                                        >
+                                            <Image source={{ uri: c.avatarUrl || 'https://via.placeholder.com/150' }} style={styles.userAvatarPlaceholder} />
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={styles.userNameText}>{c.name}</Text>
+                                                <Text style={styles.userRoleLabel}>Collaborator</Text>
+                                            </View>
+                                            <Ionicons name="chevron-forward" size={18} color="#666" />
+                                        </TouchableOpacity>
+                                    ))}
                                 </View>
-                            </View>
-                            {detail.collaborators?.map((c: any) => (
-                                <View key={c.id} style={styles.userRowItem}>
-                                    <Image source={{ uri: c.avatarUrl || 'https://via.placeholder.com/150' }} style={styles.userAvatarPlaceholder} />
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.userNameText}>{c.name}</Text>
-                                        <Text style={styles.userRoleLabel}>Collaborator</Text>
+                                <View style={styles.horizontalDivider} />
+                                <View style={styles.inviteHeaderRow}>
+                                    <Text style={styles.inviteSectionTitle}>Invite</Text>
+                                    <View style={styles.searchBoxSmall}>
+                                        <TextInput style={styles.searchBoxInput} placeholder="Search friends..." placeholderTextColor="#555" value={inviteKeyword} onChangeText={setInviteKeyword} />
+                                        {isSearching && <ActivityIndicator size="small" color={Colors.teal} />}
                                     </View>
                                 </View>
-                            ))}
-                        </View>
-                        <View style={styles.horizontalDivider} />
-                        <View style={styles.inviteHeaderRow}>
-                            <Text style={styles.inviteSectionTitle}>Invite</Text>
-                            <View style={styles.searchBoxSmall}>
-                                <TextInput style={styles.searchBoxInput} placeholder="Search friends..." placeholderTextColor="#555" value={inviteKeyword} onChangeText={setInviteKeyword} />
-                                {isSearching && <ActivityIndicator size="small" color={Colors.teal} />}
-                            </View>
-                        </View>
-                        <FlatList
-                            horizontal
-                            data={inviteResults.filter(f => detail.owner?.id !== f.id && !detail.collaborators?.some(c => c.id === f.id))}
-                            renderItem={({ item }) => (
-                                <View style={styles.inviteFriendCard}>
-                                    <Image source={{ uri: item.avatarUrl || 'https://via.placeholder.com/150' }} style={styles.friendAvatarCircle} />
-                                    <Text style={styles.friendCardName} numberOfLines={1}>{item.name}</Text>
-                                    <TouchableOpacity style={styles.inviteActionBtn} onPress={() => handleAddCollaborator(item.id)}>
-                                        <Ionicons name="person-add" size={14} color="#FFF" />
-                                        <Text style={styles.inviteActionText}>Invite</Text>
+                                <FlatList
+                                    horizontal
+                                    data={inviteResults.filter(f => detail.owner?.id !== f.id && !detail.collaborators?.some(c => c.id === f.id))}
+                                    renderItem={({ item }) => (
+                                        <View style={styles.inviteFriendCard}>
+                                            <Image source={{ uri: item.avatarUrl || 'https://via.placeholder.com/150' }} style={styles.friendAvatarCircle} />
+                                            <Text style={styles.friendCardName} numberOfLines={1}>{item.name}</Text>
+                                            <TouchableOpacity style={styles.inviteActionBtn} onPress={() => handleAddCollaborator(item.id)}>
+                                                <Ionicons name="person-add" size={14} color="#FFF" />
+                                                <Text style={styles.inviteActionText}>Invite</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+                                />
+                            </>
+                        ) : (
+                            <>
+                                <View style={styles.modalTopBar}>
+                                    <TouchableOpacity style={styles.permissionBackBtn} onPress={closeCollaboratorModal}>
+                                        <Ionicons name="chevron-back" size={18} color={Colors.white} />
+                                        <Text style={styles.permissionBackText}>Back</Text>
                                     </TouchableOpacity>
+                                    <Text style={styles.modalMainTitle}>Edit Collaborator</Text>
+                                    <View style={{ width: 48 }} />
                                 </View>
-                            )}
-                        />
+
+                                {selectedCollaborator ? (
+                                    <View style={styles.permissionUserCard}>
+                                        <Image
+                                            source={{ uri: selectedCollaborator.avatarUrl || 'https://via.placeholder.com/150' }}
+                                            style={styles.permissionAvatar}
+                                        />
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.permissionUserName}>{selectedCollaborator.name}</Text>
+                                            <Text style={styles.permissionUserRole}>Collaborator</Text>
+                                        </View>
+                                    </View>
+                                ) : null}
+
+                                <Text style={styles.permissionNote}>
+                                    Current permissions are not available yet. Select permissions, then choose whether to grant or revoke them.
+                                </Text>
+
+                                <View style={styles.permissionList}>
+                                    {COLLABORATOR_PERMISSION_OPTIONS.map((permission) => {
+                                        const active = selectedPermissions.includes(permission.value);
+
+                                        return (
+                                            <TouchableOpacity
+                                                key={permission.value}
+                                                style={[styles.permissionRow, active && styles.permissionRowActive]}
+                                                activeOpacity={0.82}
+                                                onPress={() => togglePermission(permission.value)}
+                                            >
+                                                <View style={[styles.permissionIndicator, active && styles.permissionIndicatorActive]}>
+                                                    {active ? (
+                                                        <Ionicons name="checkmark" size={14} color="#000" />
+                                                    ) : null}
+                                                </View>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={styles.permissionTitle}>{permission.label}</Text>
+                                                    <Text style={styles.permissionDescription}>{permission.description}</Text>
+                                                </View>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+
+                                <TouchableOpacity
+                                    style={[
+                                        styles.permissionActionBtn,
+                                        styles.permissionGrantBtn,
+                                        (!selectedPermissions.length || collaboratorAction !== null) && styles.permissionActionDisabled,
+                                    ]}
+                                    disabled={!selectedPermissions.length || collaboratorAction !== null}
+                                    onPress={() => handleCollaboratorPermissionUpdate('grant')}
+                                >
+                                    {collaboratorAction === 'grant' ? (
+                                        <ActivityIndicator size="small" color="#000" />
+                                    ) : (
+                                        <>
+                                            <Ionicons name="shield-checkmark" size={18} color="#000" />
+                                            <Text style={styles.permissionActionTextDark}>Grant Selected Permissions</Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={[
+                                        styles.permissionActionBtn,
+                                        styles.permissionRevokeBtn,
+                                        (!selectedPermissions.length || collaboratorAction !== null) && styles.permissionActionDisabled,
+                                    ]}
+                                    disabled={!selectedPermissions.length || collaboratorAction !== null}
+                                    onPress={() => handleCollaboratorPermissionUpdate('revoke')}
+                                >
+                                    {collaboratorAction === 'revoke' ? (
+                                        <ActivityIndicator size="small" color={Colors.white} />
+                                    ) : (
+                                        <>
+                                            <Ionicons name="remove-circle-outline" size={18} color={Colors.white} />
+                                            <Text style={styles.permissionActionTextLight}>Revoke Selected Permissions</Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={[
+                                        styles.permissionDeleteBtn,
+                                        collaboratorAction !== null && styles.permissionActionDisabled,
+                                    ]}
+                                    disabled={collaboratorAction !== null}
+                                    onPress={handleDeleteCollaborator}
+                                >
+                                    {collaboratorAction === 'delete' ? (
+                                        <ActivityIndicator size="small" color="#FF6B6B" />
+                                    ) : (
+                                        <>
+                                            <Ionicons name="trash-outline" size={18} color="#FF6B6B" />
+                                            <Text style={styles.permissionDeleteText}>Remove Collaborator</Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+                            </>
+                        )}
                     </View>
                 </View>
             </Modal>
@@ -546,6 +797,29 @@ const styles = StyleSheet.create({
     friendCardName: { color: '#000', fontSize: 12, fontWeight: '700' },
     inviteActionBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#999', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 15, gap: 4, marginTop: 5 },
     inviteActionText: { color: '#FFF', fontSize: 10, fontWeight: '700' },
+    permissionSheet: { backgroundColor: '#141414', borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 20 },
+    permissionBackBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 48 },
+    permissionBackText: { color: Colors.white, fontSize: 14, fontWeight: '600' },
+    permissionUserCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#1B1B1B', borderRadius: 16, padding: 14, marginBottom: 16 },
+    permissionAvatar: { width: 48, height: 48, borderRadius: 24 },
+    permissionUserName: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+    permissionUserRole: { color: '#8B8B8B', fontSize: 12, marginTop: 3 },
+    permissionNote: { color: '#A1A1A1', fontSize: 12, lineHeight: 18, marginBottom: 16 },
+    permissionList: { gap: 10, marginBottom: 18 },
+    permissionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#1B1B1B', borderRadius: 16, borderWidth: 1, borderColor: '#242424', padding: 14 },
+    permissionRowActive: { borderColor: Colors.teal, backgroundColor: 'rgba(51, 210, 148, 0.12)' },
+    permissionIndicator: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, borderColor: '#5A5A5A', alignItems: 'center', justifyContent: 'center' },
+    permissionIndicatorActive: { backgroundColor: Colors.teal, borderColor: Colors.teal },
+    permissionTitle: { color: '#FFF', fontSize: 14, fontWeight: '700', marginBottom: 3 },
+    permissionDescription: { color: '#8A8A8A', fontSize: 12, lineHeight: 17 },
+    permissionActionBtn: { height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, marginBottom: 10 },
+    permissionGrantBtn: { backgroundColor: '#B7F7D1' },
+    permissionRevokeBtn: { backgroundColor: '#252525', borderWidth: 1, borderColor: '#333' },
+    permissionActionDisabled: { opacity: 0.5 },
+    permissionActionTextDark: { color: '#000', fontSize: 13, fontWeight: '800' },
+    permissionActionTextLight: { color: '#FFF', fontSize: 13, fontWeight: '800' },
+    permissionDeleteBtn: { height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, backgroundColor: 'rgba(255, 107, 107, 0.08)', borderWidth: 1, borderColor: 'rgba(255, 107, 107, 0.18)', marginBottom: 8 },
+    permissionDeleteText: { color: '#FF6B6B', fontSize: 13, fontWeight: '800' },
 
     // SEARCH TRACK MODAL
     fullModal: { flex: 1, backgroundColor: '#000' },

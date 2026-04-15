@@ -25,6 +25,14 @@ export interface PlayListDetail {
     tracks: TrackContentType[],
 }
 
+export type CollaboratorPermission = 'ADD_TRACK' | 'REORDER' | 'REMOVE_TRACK';
+
+export interface CollaboratorPermissionPayload {
+    playlistId: number;
+    collaboratorId: number;
+    permissions: CollaboratorPermission[];
+}
+
 export interface SearchTrackRequest {
     existedTrackIds?: number[];
     keyword: string;
@@ -97,5 +105,31 @@ export const addCollaboratorToPlayListAPI = async (playlistId: number, userIds: 
     console.log('Request AddCollaboratorToPlayListAPI: ', {playlistId, userIds});
     const res = await apiClient.post(`${BASE_URL}/api/v1/playlist-collaborator/add`, {playlistId, userIds});
     console.log("Response AddCollaboratorToPlayListAPI: ", res.data);
+    return res.data;
+}
+
+export const updateCollaboratorPermissionAPI = async (payload: CollaboratorPermissionPayload) => {
+    console.log(`PUT UPDATECOLLABORATORPERMISSIONAPI : ${BASE_URL}/api/v1/playlist-collaborator/updatePermission`);
+    console.log('Request UpdateCollaboratorPermissionAPI: ', payload);
+    const res = await apiClient.put(`${BASE_URL}/api/v1/playlist-collaborator/updatePermission`, payload);
+    console.log('Response UpdateCollaboratorPermissionAPI: ', res.data);
+    return res.data;
+}
+
+export const revokeCollaboratorPermissionAPI = async (payload: CollaboratorPermissionPayload) => {
+    console.log(`PUT REVOKECOLLABORATORPERMISSIONAPI : ${BASE_URL}/api/v1/playlist-collaborator/revokePermission`);
+    console.log('Request RevokeCollaboratorPermissionAPI: ', payload);
+    const res = await apiClient.put(`${BASE_URL}/api/v1/playlist-collaborator/revokePermission`, payload);
+    console.log('Response RevokeCollaboratorPermissionAPI: ', res.data);
+    return res.data;
+}
+
+export const removeCollaboratorFromPlayListAPI = async (playlistId: number, userIds: number[]) => {
+    console.log(`DELETE REMOVECOLLABORATORFROMPLAYLISTAPI : ${BASE_URL}/api/v1/playlist-collaborator/delete`);
+    console.log('Request RemoveCollaboratorFromPlayListAPI: ', {playlistId, userIds});
+    const res = await apiClient.delete(`${BASE_URL}/api/v1/playlist-collaborator/delete`, {
+        data: { playlistId, userIds }
+    });
+    console.log('Response RemoveCollaboratorFromPlayListAPI: ', res.data);
     return res.data;
 }

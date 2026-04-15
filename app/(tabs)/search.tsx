@@ -54,7 +54,7 @@ const EqualizerIcon = () => {
       createAnim(anim2, 700),
       createAnim(anim3, 500),
     ]).start();
-  }, []);
+  }, [anim1, anim2, anim3]);
 
   return (
     <View style={styles.equalizerContainer}>
@@ -80,6 +80,13 @@ interface SearchResult {
   id: number;
   title?: string;
   thumbnailUrl?: string;
+  releaseYear?: number;
+  artist?: {
+    id: number;
+    avatarUrl: string;
+    name: string;
+    followed: boolean;
+  };
   duration?: number;
   contributors?: any[];
   trackUrl?: string;
@@ -216,7 +223,7 @@ export default function SearchScreen() {
     }, 500);
 
     return () => clearTimeout(delayDebounce);
-  }, [keyword, searchType]);
+  }, [accessToken, keyword, searchType]);
 
   const renderItem = ({ item }: { item: SearchResult }) => {
     const isPlaying = item.type === "Tracks" && currentTrack?.id === item.id;
@@ -229,8 +236,8 @@ export default function SearchScreen() {
           <TouchableOpacity
             style={styles.itemContainer}
             activeOpacity={0.7}
-            onPress={() =>
-              setCurrentTrack(
+            onPress={async () =>
+              await setCurrentTrack(
                 {
                   id: item.id,
                   title: item.title || "",
@@ -240,6 +247,7 @@ export default function SearchScreen() {
                   trackUrl: item.trackUrl || "",
                 },
                 false,
+                { source: "search" },
               )
             }
           >
@@ -327,7 +335,7 @@ export default function SearchScreen() {
             activeOpacity={0.7}
             onPress={() =>
               router.push({
-                pathname: "/profile/other-profile",
+                pathname: "/profile/artist-profile",
                 params: { id: item.id.toString() },
               })
             }
@@ -369,8 +377,14 @@ export default function SearchScreen() {
             activeOpacity={0.7}
             onPress={() =>
               router.push({
-                pathname: "/(tabs)/album/[id]" as any,
-                params: { id: item.id.toString() },
+                pathname: "/album/album",
+                params: {
+                  id: item.id.toString(),
+                  title: item.title || "",
+                  thumbnailUrl: item.thumbnailUrl || "",
+                  releaseYear: item.releaseYear ? String(item.releaseYear) : "",
+                  artistName: item.artist?.name || "",
+                },
               })
             }
           >
@@ -384,7 +398,9 @@ export default function SearchScreen() {
             />
             <View style={styles.resultInfo}>
               <Text style={styles.resultTitle}>{item.title}</Text>
-              <Text style={styles.resultSubtitle}>Album</Text>
+              <Text style={styles.resultSubtitle} numberOfLines={1}>
+                Album {item.artist?.name ? `• ${item.artist.name}` : ''}
+              </Text>
             </View>
           </TouchableOpacity>
         );
