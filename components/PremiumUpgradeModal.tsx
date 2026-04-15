@@ -21,6 +21,7 @@ import {
     createPaymentCheckoutAPI,
     getSubscriptionPlansAPI,
     SubscriptionPlan,
+    waitForPremiumSubscriptionAPI,
 } from '@/services/paymentService';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -351,14 +352,29 @@ export default function PremiumUpgradeModal({ visible, onClose, onSuccess }: Pre
 
     // ── Bước 2a: WebView báo SUCCESS ──
     const handlePaymentSuccess = () => {
-        setShowWebView(false);
-        setPaymentUrl(null);
-        onClose(); // Đóng modal chọn gói
-        Alert.alert(
-            '🎉 Thanh toán thành công!',
-            'Tài khoản của bạn đã được nâng cấp lên Premium.',
-            [{ text: 'Tuyệt!', onPress: onSuccess }]
-        );
+        const finalizePayment = async () => {
+            setShowWebView(false);
+            setPaymentUrl(null);
+
+            try {
+                const subscription = await waitForPremiumSubscriptionAPI();
+                onClose();
+                Alert.alert(
+                    'Thanh toán thành công!',
+                    `Gói ${subscription.planName} đã được kích hoạt đến ${subscription.endDate ?? 'N/A'}.`,
+                    [{ text: 'OK', onPress: onSuccess }]
+                );
+            } catch (error) {
+                console.error('[PayOS] Verify premium status error:', error);
+                onClose();
+                Alert.alert(
+                    'Thanh toán đã hoàn tất',
+                    'Đã nhận redirect thành công nhưng chưa xác nhận được gói Premium. Vui lòng mở lại Account Settings sau vài giây để kiểm tra.'
+                );
+            }
+        };
+
+        finalizePayment();
     };
 
     // ── Bước 2b: WebView báo CANCEL ──

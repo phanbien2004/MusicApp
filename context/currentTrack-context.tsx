@@ -1,9 +1,3 @@
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-import { TrackContentType } from '@/services/searchService';
-import { AudioPlayer, useAudioPlayer } from 'expo-audio';
-import React, { createContext, useContext, useEffect, useState } from 'react';
-=======
 import { createStompClient } from '@/api/apiSocket';
 import { USER_ID_STORAGE_KEY } from '@/constants/storageKeys';
 import { createInteractionAPI } from '@/services/interactionService';
@@ -15,16 +9,6 @@ import { AudioPlayer, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import { useJam } from './jam-context';
->>>>>>> Stashed changes
-=======
-import { createStompClient } from '@/api/apiSocket';
-import { setJamContext } from '@/services/jamService';
-import { TrackContentType } from '@/services/searchService';
-import { AudioPlayer, useAudioPlayer } from 'expo-audio';
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Alert } from 'react-native';
-import { useJam } from './jam-context';
->>>>>>> efc10f3df403aab58873a1aae76554a07e5501d2
 
 export interface CurrentTrack extends TrackContentType {
     id: number;
@@ -58,9 +42,6 @@ const parseStoredNumber = (value: string | null) => {
 export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }) => {
     const [currentTrack, setCurrentTrackState] = useState<CurrentTrack | null>(null);
     const player = useAudioPlayer(currentTrack?.trackUrl || null);
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-=======
     const status = useAudioPlayerStatus(player);
     const { activeSession } = useJam();
 
@@ -79,11 +60,6 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
 
         hydrateMemberId();
     }, []);
->>>>>>> Stashed changes
-=======
-    const {activeSession} = useJam();
-    const client = createStompClient();
->>>>>>> efc10f3df403aab58873a1aae76554a07e5501d2
 
     useEffect(() => {
         if (currentTrack?.trackUrl) {
@@ -96,11 +72,7 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
         }
     }, [currentTrack?.id, currentTrack?.trackUrl, player]);
 
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-    const handleSetTrack = (track: CurrentTrack) => {
-        setCurrentTrack(track);
-=======
+    // 1. Reset các biến đếm khi đổi sang bài hát mới
     useEffect(() => {
         if (currentTrack?.id !== currentTrackIdRef.current) {
             listenedSecsRef.current = 0;
@@ -110,6 +82,7 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
         }
     }, [currentTrack?.id]);
 
+    // 2. Tích lũy thời gian nghe thật (chỉ tính tiến tới, chặn tua) -> Bắn PLAY
     useEffect(() => {
         if (!status.playing || !currentTrack?.id) return;
 
@@ -117,7 +90,7 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
         const previousTime = prevTimeRef.current;
         const delta = currentTime - previousTime;
 
-        // Only count forward playback time to avoid seek/loop inflating listens.
+        // Chỉ cộng thời gian khi nhạc chạy tiến lên (chặn tua lớn hoặc loop)
         if (delta > 0 && delta <= 2) {
             listenedSecsRef.current += delta;
         }
@@ -136,11 +109,12 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
             createInteractionAPI({
                 trackId: currentTrack.id,
                 interactionType: 'PLAY',
-                listenDuration: Math.floor(listenedSecsRef.current),
+                duration: Math.floor(listenedSecsRef.current),
             }).catch(() => { });
         }
     }, [currentTrack?.duration, currentTrack?.id, status.currentTime, status.duration, status.playing]);
 
+    // 3. Logic xử lý SKIP nếu đổi bài mà chưa đủ ngưỡng PLAY
     useEffect(() => {
         const trackId = currentTrack?.id;
 
@@ -152,11 +126,12 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
             createInteractionAPI({
                 trackId,
                 interactionType: 'SKIP',
-                listenDuration: Math.floor(listenedSecsRef.current),
+                duration: Math.floor(listenedSecsRef.current), // Đã sửa từ listenDuration -> duration
             }).catch(() => { });
         };
     }, [currentTrack?.id]);
 
+    // 4. Lưu vị trí PlayerState khi Pause
     useEffect(() => {
         const memberId = memberIdRef.current;
         if (!currentTrack?.id || !memberId) return;
@@ -172,6 +147,7 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
         }).catch(() => { });
     }, [activeSession?.sessionId, currentTrack?.id, status.currentTime, status.playing]);
 
+    // 5. Cleanup STOMP Client khi unmount
     useEffect(() => {
         return () => {
             if (clientRef.current) {
@@ -180,6 +156,7 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
         };
     }, []);
 
+    // 6. Hàm xử lý Phát bài hát kết hợp với Jam WebSocket
     const handleSetTrack = async (track: CurrentTrack, isReceiptFromJam: boolean) => {
         if (isReceiptFromJam) {
             setCurrentTrackState(track);
@@ -238,55 +215,6 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
                 console.error('Loi SETJAMCONTEXT: ', error);
             }
         }
->>>>>>> Stashed changes
-=======
-        const handleSetTrack = async (track: CurrentTrack, isReceiptFromJam: boolean) => {
-        if (isReceiptFromJam) {
-            setCurrentTrack(track);
-        } else {
-            if (activeSession) {
-                const sendTrackUpdate = () => {
-                    if(activeSession.isHost) {
-                        client.publish({
-                        destination: '/app/jam/track',
-                        body: JSON.stringify({
-                            jamId: activeSession.sessionId,
-                            trackId: track.id,
-                        })
-                    })}
-                    client.publish({
-                        destination: '/app/jam/notification',
-                        body: JSON.stringify({
-                            jamId: activeSession.sessionId,
-                            trackId: track.id,
-                            notificationType: "JAM_INTERACTION",
-                            interactionType: "PICK",
-                        })
-                    })
-                };
-                if (client.connected) {
-                    sendTrackUpdate();
-                } else {
-                    client.onConnect = () => {
-                        sendTrackUpdate();
-                    };
-                    client.activate();
-                }
-                if (!activeSession.isHost) {
-                    Alert.alert("Request sent. Awaiting host approval.");
-                }
-                if(activeSession.sessionId && activeSession.isHost) {
-                    try{
-                        const res = await setJamContext(activeSession.sessionId,track.id,null,null);
-                    }catch(e){
-                        console.error("Loi SETJAMCONTEXT: ", e);
-                    }
-                }
-            } else {
-                setCurrentTrack(track);
-            }
-        }
->>>>>>> efc10f3df403aab58873a1aae76554a07e5501d2
     };
 
     return (
