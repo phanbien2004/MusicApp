@@ -80,6 +80,7 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
         }
     }, [currentTrack?.id]);
 
+    // 2. Tích lũy thời gian nghe thật (chỉ tính tiến tới, chặn tua) -> Bắn PLAY
     useEffect(() => {
         if (!status.playing || !currentTrack?.id) {
             return;
@@ -109,11 +110,12 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
             createInteractionAPI({
                 trackId: currentTrack.id,
                 interactionType: 'PLAY',
-                listenDuration: Math.floor(listenedSecsRef.current),
-            }).catch(() => {});
+                duration: Math.floor(listenedSecsRef.current),
+            }).catch(() => { });
         }
     }, [currentTrack?.duration, currentTrack?.id, status.currentTime, status.duration, status.playing]);
 
+    // 3. Logic xử lý SKIP nếu đổi bài mà chưa đủ ngưỡng PLAY
     useEffect(() => {
         const trackId = currentTrack?.id;
 
@@ -125,11 +127,12 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
             createInteractionAPI({
                 trackId,
                 interactionType: 'SKIP',
-                listenDuration: Math.floor(listenedSecsRef.current),
-            }).catch(() => {});
+                duration: Math.floor(listenedSecsRef.current), // Đã sửa từ listenDuration -> duration
+            }).catch(() => { });
         };
     }, [currentTrack?.id]);
 
+    // 4. Lưu vị trí PlayerState khi Pause
     useEffect(() => {
         const memberId = memberIdRef.current;
         if (!currentTrack?.id || !memberId) {
@@ -149,6 +152,7 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
         }).catch(() => {});
     }, [activeSession?.sessionId, currentTrack?.id, status.currentTime, status.playing]);
 
+    // 5. Cleanup STOMP Client khi unmount
     useEffect(() => {
         return () => {
             if (clientRef.current) {
@@ -157,6 +161,7 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
         };
     }, []);
 
+    // 6. Hàm xử lý Phát bài hát kết hợp với Jam WebSocket
     const handleSetTrack = async (track: CurrentTrack, isReceiptFromJam: boolean) => {
         if (isReceiptFromJam) {
             setCurrentTrackState(track);

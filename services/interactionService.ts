@@ -5,16 +5,14 @@ export type InteractionType = 'SAVED' | 'PLAY' | 'SKIP' | 'PREVIOUS' | 'PAUSE' |
 export interface CreateInteractionPayload {
     trackId: number;
     interactionType: InteractionType;
-    listenDuration?: number;
+    duration?: number;
 }
 
 export const createInteractionAPI = async (payload: CreateInteractionPayload): Promise<string> => {
-    const res = await apiClient.post('/api/v1/user-interaction', null, {
-        params: {
-            trackId: payload.trackId,
-            interactionType: payload.interactionType,
-            duration: payload.listenDuration ?? 0,
-        },
+    const res = await apiClient.post('/api/v1/user-interaction', {
+        trackId: payload.trackId,
+        interactionType: payload.interactionType,
+        duration: payload.duration ?? 0,
     });
 
     return res.data as string;
