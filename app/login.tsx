@@ -3,9 +3,9 @@ import { useAuth } from '@/context/auth-context';
 import { loginAPI } from '@/services/authService';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { jwtDecode } from 'jwt-decode';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { jwtDecode } from 'jwt-decode';
 import React, { useState } from 'react';
 import {
     ActivityIndicator,
@@ -33,8 +33,8 @@ export default function LoginScreen() {
 
     const handleLogin = async () => {
         setError('');
-        if (!email.trim()) return setError('Vui lòng nhập email.');
-        if (!password.trim()) return setError('Vui lòng nhập mật khẩu.');
+        if (!email.trim()) return setError('Please enter email.');
+        if (!password.trim()) return setError('Please enter password.');
 
         try {
             setLoading(true);
@@ -46,35 +46,16 @@ export default function LoginScreen() {
 
             // Kiểm tra response
             if (res.message === "Account not found!") {
-                setError("Tài khoản không tồn tại!");
+                setError("Account not found!");
             } else if (res.message === "Invalid credentials!") {
-                setError("Mật khẩu không chính xác!");
+                setError("Invalid password!");
             } else {
                 if (res.accessToken && res.refreshToken) {
                     await AsyncStorage.setItem('accessToken', res.accessToken);
                     await AsyncStorage.setItem('refreshToken', res.refreshToken);
                     await AsyncStorage.setItem('userId', JSON.stringify(res.userId));
                     login(res.accessToken, res.refreshToken);
-                    
-                    try {
-                        const decoded: any = jwtDecode(res.accessToken);
-                        console.log("Decoded JWT:", decoded);
-                        // Spring backend usually maps roles to 'role', 'roles', or 'authorities'
-                        const role = decoded.role || decoded.roles || decoded.authorities || [];
-                        const isAdmin = Array.isArray(role) 
-                            ? role.some((r: string) => r.includes('ADMIN')) 
-                            : String(role).includes('ADMIN');
-                        console.log("Is Admin?", isAdmin);
-
-                        if (isAdmin) {
-                            router.replace('/(admin)/dashboard');
-                        } else {
-                            router.replace('/(tabs)/home');
-                        }
-                    } catch (e) {
-                        console.log("JWT decode error:", e);
-                        router.replace('/(tabs)/home');
-                    }
+                    // Bỏ router.replace ở đây. AuthGuard trong _layout.tsx sẽ tự quét accessToken và phân loại Admin/User.
                 } else {
                     setError("Failed to retrieve authentication token.");
                 }

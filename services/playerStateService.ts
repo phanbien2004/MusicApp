@@ -6,6 +6,7 @@ export interface SavePlayerStatePayload {
     trackId: number;
     playlistId: number;
     albumId: number;
+    jamId?: number;
     memberId: number;
 }
 

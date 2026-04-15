@@ -33,6 +33,7 @@ export interface SubmitDraftResponse {
 
 export interface contributorDTO {
     id: number;
+    name: string;
     role: "OWNER" | "PRODUCER" | "FEATURED"
 }
 
@@ -60,6 +61,6 @@ export const submitFinalizeAPI = async (payload: SubmitFinalizePayload): Promise
 
 export const getAllTagsAPI = async (): Promise<TagDTO[]> => {
     const res = await apiClient.get('/api/v1/tag/tags');
-    console.log('[trackService] getAllTags response:', res.data);
+    // console.log('[trackService] getAllTags response:', res.data);
     return res.data as TagDTO[];
 };

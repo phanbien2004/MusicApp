@@ -8,6 +8,29 @@ export interface CreateArtistPayload {
     bio: string;
 }
 
+export interface AlbumsContentDTO {
+    id: number;
+    title: string;
+    thumbnailUrl: string;
+    releaseYear: number;
+}
+
+export interface AlbumsDTO {
+    content: AlbumsContentDTO[];
+    currentPage: number,
+    pageSize: number,
+    totalElements: number,
+    totalPages: number
+}
+
+export interface popularTrack {
+    id: 0,
+    title: string,
+    trackUrl: string,
+    thumbnailUrl: string,
+    duration: 0,
+}
+
 export interface ArtistProfileData {
     id: number;
     stageName: string;
@@ -15,6 +38,14 @@ export interface ArtistProfileData {
     avatarUrl: string;
     coverUrl: string;
     status: 'PENDING' | 'VERIFIED' | 'REJECTED';
+    followerCount: number;
+}
+
+export const getMyArtistProfileAPI = async (): Promise<ArtistProfileData> => {
+    console.log(`GET Artist Profile: ${BASE_URL}/api/v1/artist/myProfile` );
+    const res = await apiClient.get(`${BASE_URL}/api/v1/artist/myProfile`);
+    console.log("Response Get Artist Profile: ", res.data);
+    return res.data;
 }
 
 // Tạo mới yêu cầu đăng ký (POST /api/v1/artist)

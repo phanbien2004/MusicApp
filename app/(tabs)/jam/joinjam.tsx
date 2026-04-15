@@ -1,62 +1,58 @@
 import { Colors } from '@/constants/theme';
 import { useJam } from '@/context/jam-context';
-import { joinJamSessionByCodeAPI, joinJamSessionByIdAPI, resolveJamSession } from '@/services/jamService';
+import { usePlayer } from '@/context/player-context';
+// import { joinJamSessionByCodeAPI, resolveJamSession } from '@/services/jamService';
+import { useCurrentTrack } from '@/context/currentTrack-context';
+import { getJam, joinJamSessionByCodeAPI } from '@/services/jamService';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Alert, Platform, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-type JoinMode = 'id' | 'code';
-
 export default function JoinJamScreen() {
     const router = useRouter();
     const { setActiveSession } = useJam();
-    const [joinMode, setJoinMode] = useState<JoinMode>('id');
     const [code, setCode] = useState('');
     const [loading, setLoading] = useState(false);
+    const { lastActiveTab } = usePlayer();
+    const {setCurrentTrack} = useCurrentTrack()!;
+    
+
+    const handleClose = () => {
+        const tab = lastActiveTab || 'home';
+        router.navigate(`/(tabs)/${tab}` as any);
+    }
 
     const handleJoin = async () => {
         if (!code.trim()) return;
         try {
             setLoading(true);
-            // Giả sử mã code bạn nhập là ID session (theo logic join của bạn)
             const inputValue = code.trim();
-            let joinedJamId: number | undefined;
-
-            if (joinMode === 'id') {
-                const jamSessionId = Number(inputValue);
-
-                if (!Number.isFinite(jamSessionId) || jamSessionId <= 0) {
-                    throw new Error('Invalid jam room id');
-                }
-
-                const res = await joinJamSessionByIdAPI(jamSessionId);
-                const session = resolveJamSession(res, jamSessionId) ?? { sessionId: jamSessionId };
-
-                await setActiveSession({
-                    ...session,
-                    isHost: false,
-                });
-
-                joinedJamId = session.sessionId;
-            } else {
-                const res = await joinJamSessionByCodeAPI(inputValue);
-                const session = resolveJamSession(res) ?? { sessionCode: inputValue };
-
-                await setActiveSession({
-                    ...session,
-                    sessionCode: session.sessionCode ?? inputValue,
-                    isHost: false,
-                });
-
-                joinedJamId = session.sessionId;
+            const res = await joinJamSessionByCodeAPI(inputValue);
+            if(res) {
+                setActiveSession({
+                    sessionId: res,
+                    isHost: false
+                })
+                const dataJam = await getJam(res);
+                const seekPosition = dataJam.jamTrack.currentSeekPosition ?? 0;
+                        const isPlaying   = dataJam.jamTrack.playing  ?? false;
+                        console.log("[JamSync] seekPosition:", seekPosition, "| isPlaying:", isPlaying);
+                        setCurrentTrack(dataJam.jamTrack, true);
+                        router.push({
+                            pathname: '/jam/jamroom',
+                            params: {
+                                jamId: String(res),
+                                seekPosition: String(seekPosition),
+                                isPlaying: String(isPlaying),
+                                t: Date.now(),
+                            },
+                        } as any);
             }
-
-            router.navigate(joinedJamId
-                ? `/jam/jamroom?jamId=${joinedJamId}`
-                : '/jam/jamroom' as any);
-        } catch {
+            return;
+        } catch (e){
             Alert.alert("Oops!", "Could not join this Jam room.");
+            console.log("[ERROR] [JOINJAMBYCODE]", e);
         } finally {
             setLoading(false);
         }
@@ -66,27 +62,13 @@ export default function JoinJamScreen() {
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.container}>
                 <View style={styles.card}>
-                    <View style={styles.modeRow}>
-                        <TouchableOpacity
-                            style={[styles.modeChip, joinMode === 'id' && styles.modeChipActive]}
-                            onPress={() => setJoinMode('id')}
-                        >
-                            <Text style={[styles.modeChipText, joinMode === 'id' && styles.modeChipTextActive]}>Room ID</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.modeChip, joinMode === 'code' && styles.modeChipActive]}
-                            onPress={() => setJoinMode('code')}
-                        >
-                            <Text style={[styles.modeChipText, joinMode === 'code' && styles.modeChipTextActive]}>Invite Code</Text>
-                        </TouchableOpacity>
-                    </View>
                     <TextInput
                         style={styles.codeInput}
-                        placeholder={joinMode === 'id' ? 'Enter room ID...' : 'Enter invite code...'}
+                        placeholder="Enter invite code..."
                         placeholderTextColor={Colors.gray}
                         value={code}
                         onChangeText={setCode}
-                        keyboardType={joinMode === 'id' ? 'numeric' : 'default'}
+                        keyboardType="default"
                         autoCapitalize="characters"
                         textAlign="center"
                     />
@@ -95,7 +77,7 @@ export default function JoinJamScreen() {
                             <Text style={styles.joinBtnText}>{loading ? 'Joining...' : 'Join'}</Text>
                         </LinearGradient>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.cancelBtn} onPress={() => router.replace('/(tabs)/jam' as any)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+                    <TouchableOpacity style={styles.cancelBtn} onPress={handleClose}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
                 </View>
             </View>
         </SafeAreaView>
@@ -238,3 +220,5 @@ const styles = StyleSheet.create({
         color: Colors.gray,
     },
 });
+
+

@@ -3,6 +3,7 @@ import { getMySubscriptionAPI, MySubscriptionResponse } from '@/services/payment
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
+import { usePlayer } from '@/context/player-context';
 import {
     ActivityIndicator,
     Platform,
@@ -39,6 +40,12 @@ export default function MySubscriptionScreen() {
     const [subscription, setSubscription] = useState<MySubscriptionResponse | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const { lastActiveTab } = usePlayer();
+
+    const handleBack = () => {
+        const tab = lastActiveTab || 'profile';
+        router.navigate(`/(tabs)/${tab}` as any);
+    };
 
     // Tự reload mỗi lần màn hình được focus
     useFocusEffect(
@@ -50,7 +57,7 @@ export default function MySubscriptionScreen() {
                     const data = await getMySubscriptionAPI();
                     setSubscription(data);
                 } catch (err: any) {
-                    const msg = err.response?.data?.message || err.message || 'Không thể tải thông tin gói.';
+                    const msg = err.response?.data?.message || err.message || 'Cannot load subscription info.';
                     setError(msg);
                 } finally {
                     setIsLoading(false);
@@ -82,11 +89,11 @@ export default function MySubscriptionScreen() {
             <View style={styles.header}>
                 <TouchableOpacity
                     style={styles.backBtn}
-                    onPress={() => router.back()}
+                    onPress={handleBack}
                 >
                     <Ionicons name="chevron-back" size={20} color={Colors.white} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Gói Premium của tôi</Text>
+                <Text style={styles.headerTitle}>My Premium Subscription</Text>
                 <View style={{ width: 36 }} />
             </View>
 
@@ -94,7 +101,7 @@ export default function MySubscriptionScreen() {
             {isLoading ? (
                 <View style={styles.centered}>
                     <ActivityIndicator size="large" color={Colors.teal} />
-                    <Text style={styles.loadingText}>Đang tải thông tin...</Text>
+                    <Text style={styles.loadingText}>Loading info...</Text>
                 </View>
             ) : error ? (
                 <View style={styles.centered}>
@@ -107,7 +114,7 @@ export default function MySubscriptionScreen() {
                     {/* ── Status Badge ── */}
                     <View style={styles.statusBadge}>
                         <Ionicons name="checkmark-circle" size={16} color={Colors.teal} />
-                        <Text style={styles.statusText}>ĐANG ACTIVE</Text>
+                        <Text style={styles.statusText}>ACTIVE</Text>
                     </View>
 
                     {/* ── Plan Card ── */}
@@ -118,7 +125,7 @@ export default function MySubscriptionScreen() {
                                 <Ionicons name="star" size={22} color="#FFD700" />
                             </View>
                             <View style={{ flex: 1 }}>
-                                <Text style={styles.planLabel}>GÓI ĐĂNG KÝ</Text>
+                                <Text style={styles.planLabel}>SUBSCRIPTION PLAN</Text>
                                 <Text style={styles.planName}>{subscription.planName}</Text>
                             </View>
                             <View style={styles.priceBadge}>
@@ -135,7 +142,7 @@ export default function MySubscriptionScreen() {
                             <View style={styles.dateItem}>
                                 <Ionicons name="calendar-outline" size={16} color={Colors.gray} />
                                 <View>
-                                    <Text style={styles.dateLabel}>Ngày đăng ký</Text>
+                                    <Text style={styles.dateLabel}>Start Date</Text>
                                     <Text style={styles.dateValue}>
                                         {formatDate(subscription.startDate)}
                                     </Text>
@@ -145,7 +152,7 @@ export default function MySubscriptionScreen() {
                             <View style={styles.dateItem}>
                                 <Ionicons name="time-outline" size={16} color={Colors.gray} />
                                 <View>
-                                    <Text style={styles.dateLabel}>Ngày hết hạn</Text>
+                                    <Text style={styles.dateLabel}>Expiration Date</Text>
                                     <Text style={styles.dateValue}>
                                         {formatDate(subscription.endDate)}
                                     </Text>
@@ -158,9 +165,9 @@ export default function MySubscriptionScreen() {
                         {/* Progress bar */}
                         <View style={styles.progressSection}>
                             <View style={styles.progressLabelRow}>
-                                <Text style={styles.progressLabel}>Thời gian còn lại</Text>
+                                <Text style={styles.progressLabel}>Time Remaining</Text>
                                 <Text style={styles.remainingDays}>
-                                    {remaining > 0 ? `${remaining} ngày` : 'Hết hạn'}
+                                    {remaining > 0 ? `${remaining} days` : 'Expired'}
                                 </Text>
                             </View>
                             <View style={styles.progressTrack}>
@@ -179,8 +186,8 @@ export default function MySubscriptionScreen() {
                     <View style={styles.infoBox}>
                         <Ionicons name="information-circle-outline" size={16} color={Colors.gray} />
                         <Text style={styles.infoText}>
-                            Gói sẽ tự động hết hạn vào ngày {formatDate(subscription.endDate)}.
-                            Bạn có thể gia hạn trước khi hết hạn.
+                            The plan will automatically expire on {formatDate(subscription.endDate)}.
+                            You can renew before it expires.
                         </Text>
                     </View>
 

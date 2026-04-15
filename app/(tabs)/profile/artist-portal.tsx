@@ -1,10 +1,14 @@
 import { Colors } from '@/constants/theme';
+import { ArtistProfileData, getMyArtistProfileAPI } from '@/services/artistService';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import React from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { usePlayer } from '@/context/player-context';
 import {
     Dimensions,
+    Image,
     Platform,
     SafeAreaView,
     ScrollView,
@@ -19,6 +23,39 @@ const { width } = Dimensions.get('window');
 
 export default function ArtistPortalScreen() {
     const router = useRouter();
+    const [profileData, setProfileData] = useState<ArtistProfileData | null>(null);
+    const { lastActiveTab } = usePlayer();
+
+    const handleBack = () => {
+        const tab = lastActiveTab || 'profile';
+        router.navigate(`/(tabs)/${tab}` as any);
+    };
+
+    const fetchProfile = useCallback(async () => {
+        try {
+            const userId = await AsyncStorage.getItem('userId');
+            if (userId) {
+                const res = await getMyArtistProfileAPI();
+                if(res !== null) {
+                    setProfileData(res);
+                    console.log("Fetched Artist Profile: ", res.id);
+                    console.log("Fetched Artist Profile Stage Name: ", res.stageName);
+                }
+                if(profileData?.id && profileData?.stageName) {
+                    console.log("Profile Artist ID: ", profileData.id);
+                    console.log("Profile Artist Stage Name: ", profileData.stageName);
+                }
+            }
+        } catch (error) {
+            console.error("Lỗi khi lấy profile artist:", error);
+        }
+    }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchProfile();
+        }, [fetchProfile])
+    );
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -27,12 +64,15 @@ export default function ArtistPortalScreen() {
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 {/* Header Icons */}
                 <View style={styles.headerRow}>
+                    <TouchableOpacity style={styles.iconBtn} onPress={handleBack}>
+                        <Ionicons name="chevron-back" size={22} color={Colors.white} />
+                    </TouchableOpacity>
                     <View style={{ flex: 1 }} />
                     <View style={styles.headerIcons}>
                         <TouchableOpacity style={styles.iconBtn}>
                             <Ionicons name="share-social-outline" size={22} color={Colors.white} />
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.iconBtn}>
+                        <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/profile/account-settings' as any)}>
                             <Ionicons name="settings-outline" size={22} color={Colors.white} />
                         </TouchableOpacity>
                     </View>
@@ -40,31 +80,40 @@ export default function ArtistPortalScreen() {
 
                 {/* Profile Top */}
                 <View style={styles.profileTop}>
-                    <View style={styles.avatarPlaceholder} />
+                    {profileData?.avatarUrl || profileData?.avatarUrl ? (
+                         <Image source={{ uri: profileData?.avatarUrl || profileData?.avatarUrl }} style={styles.avatarPlaceholder} />
+                    ) : (
+                         <View style={[styles.avatarPlaceholder, { alignItems: 'center', justifyContent: 'center'}]}>
+                              <Ionicons name="person" size={32} color="#555" />
+                         </View>
+                    )}
                     <View style={styles.profileInfo}>
-                        <Text style={styles.profileName}>Bien  MTP</Text>
-                        <Text style={styles.profileHandle}>@bienne</Text>
+                        <Text style={styles.profileName}>{profileData?.stageName  || 'Unknown Artist'}</Text>
+                        {/* <Text style={styles.profileHandle}>@{(profileData?.artistStageName || profileData?.displayName || 'unknown').toLowerCase().replace(/\s/g, '')}</Text> */}
                     </View>
                 </View>
 
                 {/* Stats */}
                 <View style={styles.statsRow}>
                     <View style={styles.statBox}>
-                        <Text style={styles.statNumber}>12k</Text>
+                        <Text style={styles.statNumber}>{profileData?.followerCount || 0}</Text>
                         <Text style={styles.statLabel}>FANS</Text>
                     </View>
                     <View style={styles.statBox}>
-                        <Text style={styles.statNumber}>20</Text>
-                        <Text style={styles.statLabel}>FRIENDS</Text>
+                        <Text style={styles.statNumber}>{profileData?.followerCount || 0}</Text>
+                        <Text style={styles.statLabel}>ALBUMS</Text>
                     </View>
                     <View style={styles.statBox}>
-                        <Text style={styles.statNumber}>42</Text>
+                        <Text style={styles.statNumber}>0</Text>
                         <Text style={styles.statLabel}>DROPS</Text>
                     </View>
                 </View>
 
-                {/* Upload Button */}
-                <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/(tabs)/profile/upload-track' as any)}>
+                {/* Upload Track Button */}
+                <TouchableOpacity activeOpacity={0.8} onPress={() => router.push({
+                    pathname: "/profile/upload-track",
+                    params: { id: profileData?.id, stageName: profileData?.stageName }
+                })}>
                     <LinearGradient
                         colors={['#A855F7', '#3B82F6', '#60A5FA']}
                         start={{ x: 0, y: 0 }}
@@ -78,20 +127,32 @@ export default function ArtistPortalScreen() {
                     </LinearGradient>
                 </TouchableOpacity>
 
+                {/* Upload Album Button */}
+                <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={{ marginHorizontal: 24, marginBottom: 32 }}
+                    onPress={() => router.push('/profile/upload-album' as any)}
+                >
+                    <LinearGradient
+                        colors={['#7C3AED', '#A855F7', '#6366F1']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={[styles.uploadBtn, { marginHorizontal: 0, marginBottom: 0 }]}
+                    >
+                        <View style={styles.uploadBtnContent}>
+                            <Ionicons name="albums-outline" size={20} color={Colors.white} />
+                            <Text style={[styles.uploadBtnText, { color: Colors.white }]}>CREATE NEW ALBUM</Text>
+                        </View>
+                    </LinearGradient>
+                </TouchableOpacity>
+
                 {/* My Drops Section */}
                 <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>My Drops</Text>
                 </View>
 
-                <View style={styles.dropsGrid}>
-                    <View style={styles.dropCard}>
-                        <View style={styles.dropThumb} />
-                        <Text style={styles.dropName}>Song 1</Text>
-                    </View>
-                    <View style={styles.dropCard}>
-                        <View style={styles.dropThumb} />
-                        <Text style={styles.dropName}>Song 2</Text>
-                    </View>
+                <View style={[styles.dropsGrid, { alignItems: 'center', justifyContent: 'center', marginTop: 40 }]}>
+                    <Text style={{ color: '#555' }}>No tracks available.</Text>
                 </View>
             </ScrollView>
         </SafeAreaView>
@@ -137,6 +198,8 @@ const styles = StyleSheet.create({
         height: 80,
         borderRadius: 16,
         backgroundColor: '#D9D9D9',
+        borderWidth: 1,
+        borderColor: '#333'
     },
     profileInfo: {
         gap: 4,
@@ -208,21 +271,5 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         paddingHorizontal: 24,
         gap: 16,
-    },
-    dropCard: {
-        flex: 1,
-        gap: 8,
-    },
-    dropThumb: {
-        width: '100%',
-        aspectRatio: 1,
-        borderRadius: 16,
-        backgroundColor: '#D9D9D9',
-    },
-    dropName: {
-        fontSize: 14,
-        fontWeight: '500',
-        color: Colors.white,
-        textAlign: 'center',
     },
 });

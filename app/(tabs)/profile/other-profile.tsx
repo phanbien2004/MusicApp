@@ -4,6 +4,7 @@ import { getMemberPlayListAPI, PlayList } from '@/services/listService';
 import { getProfileAPI, ProfileResponse } from '@/services/profileService';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { usePlayer } from '@/context/player-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
@@ -32,6 +33,12 @@ export default function ProfileScreen() {
     const [playlists, setPlaylists] = useState<PlayList[] | null>(null);
     const [loading, setLoading] = useState(true);
     const [myId, setMyId] = useState<string | null>(null);
+    const { lastActiveTab } = usePlayer();
+
+    const handleBack = () => {
+        const tab = lastActiveTab || 'home';
+        router.navigate(`/(tabs)/${tab}` as any);
+    };
 
     // --- KIỂM TRA QUYỀN SỞ HỮU ---
     // Nếu không có id trên URL, hoặc id trên URL trùng với id trong máy -> Là profile của mình
@@ -77,9 +84,9 @@ export default function ProfileScreen() {
                 await acceptFriendAPI(id as string);
             } else {
                 // Nếu đã gửi hoặc đã là bạn -> Hỏi trước khi hủy
-                return Alert.alert("Xác nhận", "Bạn muốn hủy yêu cầu hoặc xóa bạn bè?", [
-                    { text: "Hủy", style: "cancel" },
-                    { text: "Đồng ý", style: "destructive", onPress: async () => {
+                return Alert.alert("Confirm", "Do you want to cancel the request or remove friend?", [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Confirm", style: "destructive", onPress: async () => {
                         await deleteFriendAPI(id as string);
                         fetchProfile();
                     }}
@@ -134,7 +141,7 @@ export default function ProfileScreen() {
                 <View style={styles.headerRow}>
                     {/* Hiện nút Back nếu là profile người khác */}
                     {!isOwnProfile ? (
-                        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+                        <TouchableOpacity onPress={handleBack} style={styles.iconBtn}>
                             <Ionicons name="chevron-back" size={24} color={Colors.white} />
                         </TouchableOpacity>
                     ) : <View style={{ flex: 1 }} />}

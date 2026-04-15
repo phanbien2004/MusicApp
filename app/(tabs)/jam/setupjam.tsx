@@ -1,11 +1,16 @@
 import { Colors } from '@/constants/theme';
 import { useJam } from '@/context/jam-context';
-import { createJamSessionAPI, resolveJamSession } from '@/services/jamService';
+// import { createJamSessionAPI, resolveJamSession } from '@/services/jamService';
+import { createJamSessionAPI } from '@/services/jamService';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Platform, SafeAreaView, StatusBar, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { CreateJamPayLoad } from '@/services/jamService';
+import { usePlayer } from '@/context/player-context';
+
+
 
 const ROOM_SIZES = [2, 4, 6, 8, 10];
 
@@ -15,26 +20,31 @@ export default function SetupJamScreen() {
     const [privacyMode, setPrivacyMode] = useState(false);
     const [roomSize, setRoomSize] = useState(4);
     const [loading, setLoading] = useState(false);
+    const { lastActiveTab } = usePlayer();
+
+    const handleClose = () => {
+        const tab = lastActiveTab || 'home';
+        router.navigate(`/(tabs)/${tab}` as any);
+    }
 
     const handleStartJam = async () => {
+        const payload : CreateJamPayLoad = {
+            size: roomSize,
+            isPrivate: privacyMode
+        }
         try {
             setLoading(true);
-            const res = await createJamSessionAPI(roomSize, privacyMode);
-            // Backend trả về message thành công, sau đó bạn có thể lấy ID từ profile hoặc API list jam
-            const session = resolveJamSession(res);
-
-            if (!session?.sessionId) {
-                throw new Error('Missing jam session id in create response');
+            const res = await createJamSessionAPI(payload);
+            if(res) {
+                setActiveSession({
+                    sessionId: res.id,
+                    sessionCode: res.code,
+                    size: roomSize,
+                    isPrivate: privacyMode,
+                    isHost: true
+                })
+                router.push(`/(tabs)/jam/jamroom?jamId=${res.id}` as any);
             }
-
-            await setActiveSession({
-                ...session,
-                size: session.size ?? roomSize,
-                isPrivate: session.isPrivate ?? privacyMode,
-                isHost: true,
-            });
-
-            router.navigate(`/jam/jamroom?jamId=${session.sessionId}` as any);
         } catch {
             Alert.alert("Error", "Could not create Jam session.");
         } finally {
@@ -79,7 +89,7 @@ export default function SetupJamScreen() {
                             {loading ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="play-circle" size={22} color={Colors.white} /><Text style={styles.startBtnText}>Start Jam Session</Text></>}
                         </LinearGradient>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.cancelBtn} onPress={() => router.replace('/(tabs)/jam' as any)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+                    <TouchableOpacity style={styles.cancelBtn} onPress={handleClose}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
                 </View>
             </View>
         </SafeAreaView>

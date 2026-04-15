@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <<<<<<< Updated upstream
 import { TrackContentType } from '@/services/searchService';
 import { AudioPlayer, useAudioPlayer } from 'expo-audio';
@@ -15,6 +16,15 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import { Alert } from 'react-native';
 import { useJam } from './jam-context';
 >>>>>>> Stashed changes
+=======
+import { createStompClient } from '@/api/apiSocket';
+import { setJamContext } from '@/services/jamService';
+import { TrackContentType } from '@/services/searchService';
+import { AudioPlayer, useAudioPlayer } from 'expo-audio';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Alert } from 'react-native';
+import { useJam } from './jam-context';
+>>>>>>> efc10f3df403aab58873a1aae76554a07e5501d2
 
 export interface CurrentTrack extends TrackContentType {
     id: number;
@@ -23,7 +33,7 @@ export interface CurrentTrack extends TrackContentType {
 
 interface CurrentTrackContextType {
     currentTrack: CurrentTrack | null;
-    setCurrentTrack: (track: CurrentTrack) => void;
+    setCurrentTrack: (track: CurrentTrack, isReceiptFromJam: boolean) => void;
     player: AudioPlayer;
 }
 
@@ -48,6 +58,7 @@ const parseStoredNumber = (value: string | null) => {
 export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }) => {
     const [currentTrack, setCurrentTrackState] = useState<CurrentTrack | null>(null);
     const player = useAudioPlayer(currentTrack?.trackUrl || null);
+<<<<<<< HEAD
 <<<<<<< Updated upstream
 =======
     const status = useAudioPlayerStatus(player);
@@ -69,6 +80,10 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
         hydrateMemberId();
     }, []);
 >>>>>>> Stashed changes
+=======
+    const {activeSession} = useJam();
+    const client = createStompClient();
+>>>>>>> efc10f3df403aab58873a1aae76554a07e5501d2
 
     useEffect(() => {
         if (currentTrack?.trackUrl) {
@@ -81,6 +96,7 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
         }
     }, [currentTrack?.id, currentTrack?.trackUrl, player]);
 
+<<<<<<< HEAD
 <<<<<<< Updated upstream
     const handleSetTrack = (track: CurrentTrack) => {
         setCurrentTrack(track);
@@ -223,6 +239,54 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
             }
         }
 >>>>>>> Stashed changes
+=======
+        const handleSetTrack = async (track: CurrentTrack, isReceiptFromJam: boolean) => {
+        if (isReceiptFromJam) {
+            setCurrentTrack(track);
+        } else {
+            if (activeSession) {
+                const sendTrackUpdate = () => {
+                    if(activeSession.isHost) {
+                        client.publish({
+                        destination: '/app/jam/track',
+                        body: JSON.stringify({
+                            jamId: activeSession.sessionId,
+                            trackId: track.id,
+                        })
+                    })}
+                    client.publish({
+                        destination: '/app/jam/notification',
+                        body: JSON.stringify({
+                            jamId: activeSession.sessionId,
+                            trackId: track.id,
+                            notificationType: "JAM_INTERACTION",
+                            interactionType: "PICK",
+                        })
+                    })
+                };
+                if (client.connected) {
+                    sendTrackUpdate();
+                } else {
+                    client.onConnect = () => {
+                        sendTrackUpdate();
+                    };
+                    client.activate();
+                }
+                if (!activeSession.isHost) {
+                    Alert.alert("Request sent. Awaiting host approval.");
+                }
+                if(activeSession.sessionId && activeSession.isHost) {
+                    try{
+                        const res = await setJamContext(activeSession.sessionId,track.id,null,null);
+                    }catch(e){
+                        console.error("Loi SETJAMCONTEXT: ", e);
+                    }
+                }
+            } else {
+                setCurrentTrack(track);
+            }
+        }
+>>>>>>> efc10f3df403aab58873a1aae76554a07e5501d2
     };
 
     return (

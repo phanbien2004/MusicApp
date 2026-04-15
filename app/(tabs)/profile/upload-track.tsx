@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/theme';
+import { submitTrackAlbumAPI } from '@/services/albumUploadService';
 import { ArtistContentType, searchAPI } from '@/services/searchService';
 import { getPresignedUploadUrl, uploadFileToMinIO } from '@/services/storageService';
 import {
@@ -11,13 +12,11 @@ import {
     submitFinalizeAPI,
 } from '@/services/trackService';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAudioPlayer, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
@@ -25,7 +24,9 @@ import {
     Animated,
     Dimensions,
     Image,
+    KeyboardAvoidingView,
     Modal,
+    Platform,
     ScrollView,
     StyleSheet,
     Text,
@@ -37,7 +38,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
-// --- Interface mới để quản lý vai trò ---
 interface SelectedContributor {
     artist: ArtistContentType;
     role: 'PRODUCER' | 'FEATURED';
@@ -143,25 +143,48 @@ function ChooseTagModal({ visible, currentSelected, recommendedTags, allSystemTa
 
                     <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
                         <View style={styles.choiceRowHeader}>
-                            <Text style={styles.modalLabel}>YOUR CHOICES</Text>
-                            <Text style={styles.maxTagsText}>MAX 3 TAGS</Text>
+                            <Text style={styles.modalLabel}>CURRENT SELECTION {selected.length}/3</Text>
                         </View>
 
                         <View style={styles.tagWrap}>
                             {selected.map(tag => (
                                 <TouchableOpacity key={tag.id} style={styles.tagSelected} onPress={() => toggleTag(tag)}>
                                     <Text style={styles.tagSelectedText}>{tag.displayName}</Text>
+                                    <Ionicons name="close-circle" size={16} color={Colors.teal} style={{ marginLeft: 6 }} />
                                 </TouchableOpacity>
                             ))}
                         </View>
 
                         <View style={styles.modalDivider} />
 
+                        {recommendedTags && recommendedTags.length > 0 && (
+                            <>
+                                <View style={styles.choiceRowHeader}>
+                                    <Text style={styles.modalLabel}><Ionicons name="sparkles" size={14} color="#A855F7" /> AI SUGGESTED</Text>
+                                </View>
+                                <View style={styles.tagWrap}>
+                                    {recommendedTags.filter(t => !selected.find(s => s.id === t.id)).map(tag => (
+                                        <TouchableOpacity
+                                            key={tag.id}
+                                            style={[styles.tagUnselected, { borderColor: '#A855F7' }, selected.length >= 3 && styles.tagDisabled]}
+                                            onPress={() => toggleTag(tag)}
+                                            disabled={selected.length >= 3}
+                                        >
+                                            <Text style={styles.tagUnselectedText}>{tag.displayName}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                                <View style={styles.modalDivider} />
+                            </>
+                        )}
+                        <View style={styles.choiceRowHeader}>
+                            <Text style={styles.modalLabel}>ALL VIBES</Text>
+                        </View>
                         <View style={styles.tagWrap}>
                             {allTagObjects.filter(t => !selected.find(s => s.id === t.id)).map(tag => (
-                                <TouchableOpacity 
-                                    key={tag.id} 
-                                    style={[styles.tagUnselected, selected.length >= 3 && styles.tagDisabled]} 
+                                <TouchableOpacity
+                                    key={tag.id}
+                                    style={[styles.tagUnselected, selected.length >= 3 && styles.tagDisabled]}
                                     onPress={() => toggleTag(tag)}
                                     disabled={selected.length >= 3}
                                 >
@@ -169,7 +192,6 @@ function ChooseTagModal({ visible, currentSelected, recommendedTags, allSystemTa
                                 </TouchableOpacity>
                             ))}
                         </View>
-
                         <TouchableOpacity style={styles.modalOkBtn} onPress={() => onDone(selected)}>
                             <Text style={styles.modalOkText}>CONFIRM</Text>
                         </TouchableOpacity>
@@ -181,38 +203,88 @@ function ChooseTagModal({ visible, currentSelected, recommendedTags, allSystemTa
 }
 
 // ─── REVIEW AUDIO CARD ────────────────────────────────────────────────────────
-function ReviewAudioCard({ trackUrl, trackTitle, thumbnailUrl, durationStr, sizeStr }: any) {
+function ReviewAudioCard({ trackUrl, trackTitle, thumbnailUrl, durationStr, sizeStr, duration: calculatedDuration }: any) {
     const player = useAudioPlayer({ uri: trackUrl });
     const status = useAudioPlayerStatus(player);
-    const waveHeights = Array.from({ length: 32 }, (_, i) => 10 + Math.abs(Math.sin(i * 0.7)) * 35);
-    
-    const duration = status.duration > 0 ? status.duration : 1;
-    const progressPercent = Math.min((status.currentTime / duration) * 100, 100) + '%';
+    const waveHeights = React.useMemo(() => {
+        return Array.from({ length: 48 }, (_, i) => {
+            const h1 = Math.sin(i * 0.3) * 15;
+            const h2 = Math.cos(i * 0.7) * 10;
+            const randomPeak = Math.random() > 0.8 ? 15 : 0;
+            return Math.max(5, Math.min(50, 20 + h1 + h2 + randomPeak + Math.random() * 5));
+        });
+    }, [trackTitle]);
+
+    const finalDuration = status.duration > 0 ? status.duration : (calculatedDuration > 0 ? calculatedDuration : 1);
+    const [dragTime, setDragTime] = useState<number | null>(null);
+    const progressPercent = Math.min(((dragTime !== null ? dragTime : status.currentTime) / finalDuration) * 100, 100) + '%';
+    const barWidth = useRef<number>(0);
+
+    const handleSeekUpdate = (e: any) => {
+        if (barWidth.current > 0) {
+            const ratio = e.nativeEvent.locationX / barWidth.current;
+            const targetTime = Math.max(0, Math.min(ratio * finalDuration, finalDuration));
+            setDragTime(targetTime);
+        }
+    };
+
+    const handleSeekEnd = (e: any) => {
+        if (barWidth.current > 0) {
+            const ratio = e.nativeEvent.locationX / barWidth.current;
+            const targetTime = Math.max(0, Math.min(ratio * finalDuration, finalDuration));
+            player.seekTo(targetTime);
+            setDragTime(null);
+        }
+    };
 
     return (
         <View style={styles.audioCard}>
-            <View style={styles.waveformContainer}>
-                {waveHeights.map((h, i) => (
-                    <View key={i} style={[styles.waveBar, { height: h, backgroundColor: (i/32) <= (status.currentTime/duration) ? Colors.teal : '#2A2A2A' }]} />
-                ))}
-            </View>
-            <View style={styles.timeRow}>
-                <Text style={styles.timeText}>{formatDuration(Math.floor(status.currentTime))}</Text>
-                <Text style={styles.timeText}>{durationStr}</Text>
-            </View>
-            <View style={styles.playerControls}>
-                <TouchableOpacity style={styles.playPauseBtn} onPress={() => status.playing ? player.pause() : player.play()}>
-                    <Ionicons name={status.playing ? "pause" : "play"} size={18} color={Colors.teal} />
-                </TouchableOpacity>
-                <View style={styles.progressBar}>
-                    <View style={[styles.progressFill, { width: progressPercent as any }]} />
+            <View style={styles.trackInfoRow}>
+                {thumbnailUrl
+                    ? <Image source={{ uri: thumbnailUrl }} style={styles.trackThumb} />
+                    : <View style={[styles.trackThumb, { backgroundColor: '#222' }]} />
+                }
+                <View style={{ flex: 1 }}>
+                    <Text style={styles.trackName} numberOfLines={1}>{trackTitle}</Text>
+                    <Text style={styles.trackSize}>{sizeStr}</Text>
                 </View>
             </View>
-            <View style={styles.trackInfoRow}>
-                {thumbnailUrl ? <Image source={{ uri: thumbnailUrl }} style={styles.trackThumb} /> : <View style={[styles.trackThumb, { backgroundColor: '#222' }]} />}
-                <View style={{ flex: 1 }}>
-                    <Text style={styles.trackName}>{trackTitle}</Text>
-                    <Text style={styles.trackSize}>{sizeStr}</Text>
+
+            <View style={{ marginTop: 24, paddingHorizontal: 4 }}>
+                <View style={styles.waveformContainer}>
+                    {waveHeights.map((h, i) => (
+                        <View
+                            key={i}
+                            style={[
+                                styles.waveBar,
+                                { height: h, backgroundColor: (i / 48) <= (status.currentTime / finalDuration) ? Colors.teal : '#2A2A2A' }
+                            ]}
+                        />
+                    ))}
+                </View>
+                <View style={styles.playerControls}>
+                    <TouchableOpacity style={styles.playPauseBtn} onPress={() => status.playing ? player.pause() : player.play()}>
+                        <Ionicons name={status.playing ? "pause" : "play"} size={22} color={Colors.teal} />
+                    </TouchableOpacity>
+                    <View style={styles.sliderWrap}>
+                        <View
+                            style={styles.progressBarWrapper}
+                            onLayout={(e) => barWidth.current = e.nativeEvent.layout.width}
+                            onStartShouldSetResponder={() => true}
+                            onMoveShouldSetResponder={() => true}
+                            onResponderGrant={handleSeekUpdate}
+                            onResponderMove={handleSeekUpdate}
+                            onResponderRelease={handleSeekEnd}
+                        >
+                            <View style={styles.progressBar}>
+                                <View style={[styles.progressFill, { width: progressPercent as any }]} />
+                                <View style={[styles.progressKnob, { left: progressPercent as any }]} />
+                            </View>
+                        </View>
+                        <View style={styles.timeRow}>
+                            <Text style={styles.timeText}>{formatDuration(Math.floor(dragTime !== null ? dragTime : status.currentTime))} / {durationStr}</Text>
+                        </View>
+                    </View>
                 </View>
             </View>
         </View>
@@ -224,19 +296,31 @@ export default function UploadTrackScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
 
+    // ── Params ──────────────────────────────────────────────────────────────────
+    const { id, stageName, isCreateAlbum, albumId, albumTitle } = useLocalSearchParams() as {
+        id: string;
+        stageName: string;
+        isCreateAlbum?: string;          // 'true' khi đến từ luồng tạo album
+        albumId?: string;                // id của album vừa tạo
+        albumTitle?: string;             // tên album để hiển thị UX
+    };
+
+    const isAlbumFlow = isCreateAlbum === 'true' && !!albumId;
+
+    // ── Form state ───────────────────────────────────────────────────────────────
     const [step, setStep] = useState<Step>('form');
     const [artworkUri, setArtworkUri] = useState<string | null>(null);
     const [artworkFile, setArtworkFile] = useState<any>(null);
     const [trackFile, setTrackFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
     const [trackTitle, setTrackTitle] = useState('');
 
+    // ── Artist search state ──────────────────────────────────────────────────────
     const [artistQuery, setArtistQuery] = useState('');
     const [artistResults, setArtistResults] = useState<ArtistContentType[]>([]);
-    
-    // --- Thay đổi state selectedArtists để lưu cả Role ---
     const [selectedContributors, setSelectedContributors] = useState<SelectedContributor[]>([]);
     const [isSearching, setIsSearching] = useState(false);
 
+    // ── Review / finalize state ──────────────────────────────────────────────────
     const [draftData, setDraftData] = useState<SubmitDraftResponse | null>(null);
     const [reviewArtists, setReviewArtists] = useState<FeaturedArtistDTO[]>([]);
     const [reviewTags, setReviewTags] = useState<TagDTO[]>([]);
@@ -245,47 +329,69 @@ export default function UploadTrackScreen() {
     const [isFinalizing, setIsFinalizing] = useState(false);
     const [calculatedDuration, setCalculatedDuration] = useState(0);
 
-    // Reset all form fields every time this screen is focused
+    // ── Album flow: đếm vị trí track hiện tại trong album ───────────────────────
+    const [trackPosition, setTrackPosition] = useState(1);
+
+    // ── Reset form fields (không reset trackPosition — được quản lý riêng) ──────
+    const resetForm = useCallback(() => {
+        setStep('form');
+        setArtworkUri(null);
+        setArtworkFile(null);
+        setTrackFile(null);
+        setTrackTitle('');
+        setArtistQuery('');
+        setArtistResults([]);
+        setSelectedContributors([]);
+        setDraftData(null);
+        setReviewArtists([]);
+        setReviewTags([]);
+        setShowTagModal(false);
+        setIsFinalizing(false);
+        setCalculatedDuration(0);
+    }, []);
+
+    // Khi màn hình được focus lại (navigate mới), reset toàn bộ kể cả position
     useFocusEffect(
         useCallback(() => {
-            setStep('form');
-            setArtworkUri(null);
-            setArtworkFile(null);
-            setTrackFile(null);
-            setTrackTitle('');
-            setArtistQuery('');
-            setArtistResults([]);
-            setSelectedContributors([]);
-            setDraftData(null);
-            setReviewArtists([]);
-            setReviewTags([]);
-            setShowTagModal(false);
-            setIsFinalizing(false);
-            setCalculatedDuration(0);
+            resetForm();
+            setTrackPosition(1);
         }, [])
     );
 
     useEffect(() => {
-        getAllTagsAPI().then(setAllSystemTags).catch(e => console.error("Load tags failed:", e));
+        getAllTagsAPI().then(setAllSystemTags).catch(e => console.error('Load tags failed:', e));
     }, []);
 
+    // ── Artist search với debounce ────────────────────────────────────────────────
     useEffect(() => {
         const timer = setTimeout(async () => {
             if (artistQuery.trim().length > 1) {
                 setIsSearching(true);
                 try {
-                    const res = await searchAPI({ keyword: artistQuery, type: 'artists', pageNumber: 1, pageSize: 5 });
-                    setArtistResults(res.artistPreviewDTOS?.content || []);
-                } catch (e) { console.error('Search error:', e); } finally { setIsSearching(false); }
-            } else { setArtistResults([]); }
+                    const res = await searchAPI({ keyword: artistQuery, type: 'artists', pageNumber: 1, pageSize: 10 });
+                    const allResults = res.artistPreviewDTOS?.content || [];
+                    const filtered = allResults.filter(item => {
+                        const isNotSelf = Number(item.id) !== Number(id);
+                        const isNotAdded = !selectedContributors.some(c => Number(c.artist.id) === Number(item.id));
+                        return isNotSelf && isNotAdded;
+                    });
+                    setArtistResults(filtered);
+                } catch (e) {
+                    console.error('Search error:', e);
+                } finally {
+                    setIsSearching(false);
+                }
+            } else {
+                setArtistResults([]);
+            }
         }, 500);
         return () => clearTimeout(timer);
-    }, [artistQuery]);
+    }, [artistQuery, id, selectedContributors]);
 
-    // --- Hàm add artist với Role cụ thể ---
+    // ── Helpers ──────────────────────────────────────────────────────────────────
     const addContributor = (artist: ArtistContentType, role: 'PRODUCER' | 'FEATURED') => {
         if (!selectedContributors.find(c => c.artist.id === artist.id)) {
-            setSelectedContributors([...selectedContributors, { artist, role }]);
+            setSelectedContributors(prev => [...prev, { artist, role }]);
         }
         setArtistQuery('');
         setArtistResults([]);
@@ -305,6 +411,7 @@ export default function UploadTrackScreen() {
         if (!result.canceled && result.assets) setTrackFile(result.assets[0]);
     };
 
+    // ── Step 1: Upload files + submit draft ──────────────────────────────────────
     const handleUpload = async () => {
         if (!trackFile || !trackTitle.trim()) {
             Alert.alert('Thông báo', 'Vui lòng điền đủ tên bài hát và chọn file nhạc!');
@@ -314,7 +421,7 @@ export default function UploadTrackScreen() {
         try {
             const trackPresigned = await getPresignedUploadUrl(trackFile.name, trackFile.mimeType || 'audio/mpeg', 'songs');
             await uploadFileToMinIO(trackFile.uri, trackFile.mimeType || 'audio/mpeg', trackPresigned.url);
-            
+
             let thumbnailKey = null;
             if (artworkFile) {
                 const artPresigned = await getPresignedUploadUrl(artworkFile.name, artworkFile.type, 'thumbnails');
@@ -332,13 +439,14 @@ export default function UploadTrackScreen() {
                 duration,
                 featuredArtistDTO: selectedContributors.map(c => ({
                     id: c.artist.id,
-                    role: c.role
+                    name: c.artist.name,
+                    role: c.role,
                 })),
             });
 
             setDraftData(draft);
-            setReviewArtists(draft.featuredArtists);
-            setReviewTags(draft.recommendedTags.slice(0, 3));
+            setReviewArtists(draft.featuredArtists || []);
+            setReviewTags(draft.recommendedTags ? draft.recommendedTags.slice(0, 3) : []);
             setStep('review');
         } catch (err: any) {
             console.error('Upload error:', err);
@@ -347,42 +455,68 @@ export default function UploadTrackScreen() {
         }
     };
 
+    // ── Step 2: Finalize track + (nếu là album flow) gán vào album ───────────────
     const handleFinalize = async () => {
         if (!draftData) return;
         setIsFinalizing(true);
         try {
-            const storedUserId = await AsyncStorage.getItem('userId');
-            const currentUserId = storedUserId ? Number(storedUserId) : null;
+            if (isAlbumFlow) {
+                // Luồng Album: CHỈ gọi submitTrackAlbumAPI
+                console.log('[UploadTrack] Submitting track to album:', {
+                    albumId: Number(albumId),
+                    trackId: draftData.trackId,
+                    position: trackPosition,
+                });
+                await submitTrackAlbumAPI(Number(albumId), draftData.trackId, trackPosition);
 
-            // --- TẠO DANH SÁCH CONTRIBUTORS THEO CÁCH 2 ---
-            const finalContributors: contributorDTO[] = selectedContributors.map(c => ({
-                id: Number(c.artist.id),
-                role: c.role
-            }));
+                Alert.alert(
+                    `✅ Track ${trackPosition} Added`,
+                    `"${draftData.title}" has been added to "${albumTitle ?? 'your album'}".`,
+                    [
+                        {
+                            text: '+ Add Another Track',
+                            onPress: () => {
+                                // Tăng vị trí, reset form nhưng GIỮ NGUYÊN trackPosition state
+                                setTrackPosition(prev => prev + 1);
+                                resetForm();
+                            },
+                        },
+                        {
+                            text: 'Done with Album',
+                            style: 'default',
+                            onPress: () => router.replace('/(tabs)/profile/artist-portal' as any),
+                        },
+                    ]
+                );
+            } else {
+                // Luồng Upload Track Đơn Lẻ: Gọi submitFinalizeAPI
+                const finalContributors: contributorDTO[] = [
+                    ...selectedContributors.map(c => ({
+                        id: Number(c.artist.id),
+                        name: c.artist.name,
+                        role: c.role,
+                    })),
+                    { id: Number(id), name: stageName, role: 'OWNER' },
+                ];
 
-            // Thêm chính mình là OWNER
-            if (currentUserId) {
-                // Kiểm tra tránh trùng lặp nếu lỡ tay add mình ở search
-                const alreadyIn = finalContributors.find(c => c.id === currentUserId);
-                if (!alreadyIn) {
-                    finalContributors.push({ id: currentUserId, role: 'OWNER' });
-                }
+                await submitFinalizeAPI({
+                    id: draftData.trackId,
+                    contributors: finalContributors,
+                    tagIds: reviewTags.map(t => t.id),
+                });
+
+                Alert.alert(
+                    'Track Submitted',
+                    "Your track is being processed. We'll notify you when it's ready.",
+                    [{ text: 'Done', onPress: () => router.replace('/(tabs)/profile/artist-portal' as any) }]
+                );
             }
-
-            await submitFinalizeAPI({
-                id: draftData.trackId,
-                contributors: finalContributors, // Gửi list contributor kèm role
-                tagIds: reviewTags.map(t => t.id),
-            });
-            
-            Alert.alert(
-                "Track Submitted",
-                "Your track is being processed. We'll notify you when it's ready.",
-                [{ text: 'Done', onPress: () => router.replace('/(tabs)/profile/artist-portal' as any) }]
-            );
         } catch (err: any) {
-            Alert.alert('Lỗi', 'Giai đoạn hoàn tất gặp lỗi.');
-        } finally { setIsFinalizing(false); }
+            console.error('Finalize error:', err);
+            Alert.alert('Lỗi', 'Giai đoạn hoàn tất gặp lỗi. Vui lòng thử lại.');
+        } finally {
+            setIsFinalizing(false);
+        }
     };
 
     const handleBack = () => {
@@ -393,69 +527,123 @@ export default function UploadTrackScreen() {
         }
     };
 
+    // ── Header — hiển thị context album nếu đang trong album flow ────────────────
     const renderHeader = (title: string) => (
         <View style={[styles.header, { paddingTop: insets.top, height: 60 + insets.top }]}>
             <TouchableOpacity style={[styles.backBtn, { top: insets.top + 12 }]} onPress={handleBack}>
                 <Ionicons name="chevron-back" size={22} color={Colors.white} />
             </TouchableOpacity>
             <View style={styles.headerTitles}>
-                <Text style={styles.headerStudio}>ARTIST STUDIO</Text>
-                <Text style={styles.headerTitle}>{title}</Text>
+                {isAlbumFlow ? (
+                    <>
+                        <Text style={styles.headerStudio} numberOfLines={1}>
+                            {albumTitle ? albumTitle.toUpperCase() : 'ALBUM'} · TRACK {trackPosition}
+                        </Text>
+                        <Text style={styles.headerTitle}>{title}</Text>
+                    </>
+                ) : (
+                    <>
+                        <Text style={styles.headerStudio}>ARTIST STUDIO</Text>
+                        <Text style={styles.headerTitle}>{title}</Text>
+                    </>
+                )}
             </View>
         </View>
     );
 
+    // ─── RENDER: Uploading ────────────────────────────────────────────────────────
     if (step === 'uploading') {
         return <View style={styles.safeArea}>{renderHeader('UPLOAD TRACK')}<LoadingOverlay /></View>;
     }
 
+    // ─── RENDER: Review ───────────────────────────────────────────────────────────
     if (step === 'review' && draftData) {
         return (
             <View style={styles.safeArea}>
                 {renderHeader('UPLOAD TRACK')}
-                <ChooseTagModal 
-                    visible={showTagModal} 
-                    currentSelected={reviewTags} 
-                    recommendedTags={draftData.recommendedTags} 
-                    allSystemTags={allSystemTags} 
-                    onDone={(tags) => { setReviewTags(tags); setShowTagModal(false); }} 
-                    onClose={() => setShowTagModal(false)} 
+                <ChooseTagModal
+                    visible={showTagModal}
+                    currentSelected={reviewTags}
+                    recommendedTags={draftData.recommendedTags}
+                    allSystemTags={allSystemTags}
+                    onDone={(tags) => { setReviewTags(tags); setShowTagModal(false); }}
+                    onClose={() => setShowTagModal(false)}
                 />
-                <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]} showsVerticalScrollIndicator={false}>
-                    <Text style={styles.reviewSectionTitle}>REVIEW YOUR TRACK</Text>
-                    <ReviewAudioCard 
-                        trackUrl={draftData.trackUrl} 
-                        trackTitle={draftData.title} 
-                        thumbnailUrl={draftData.thumbnailUrl || artworkUri} 
-                        durationStr={formatDuration(calculatedDuration)} 
-                        sizeStr={`${(trackFile!.size! / (1024*1024)).toFixed(1)} MB`}
-                    />
-                    
-                    <View style={styles.sectionHeaderRow}>
-                        <Text style={styles.reviewLabel}>Contributors</Text>
-                    </View>
-                    <View style={styles.artistsRow}>
-                        {selectedContributors.map(c => (
-                            <View key={c.artist.id} style={styles.artistItem}>
-                                {c.artist.avatarUrl ? <Image source={{ uri: c.artist.avatarUrl }} style={styles.artistAvatar} /> : <View style={[styles.artistAvatar, { backgroundColor: '#333' }]} />}
-                                <Text style={styles.artistLabel} numberOfLines={1}>{c.artist.name}</Text>
-                                <Text style={styles.roleLabelSmall}>{c.role}</Text>
-                            </View>
-                        ))}
-                    </View>
+                <ScrollView
+                    contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
+                    showsVerticalScrollIndicator={false}
+                >
+                    {/* Album context banner */}
+                    {isAlbumFlow && (
+                        <View style={styles.albumBanner}>
+                            <Ionicons name="albums-outline" size={14} color={Colors.teal} />
+                            <Text style={styles.albumBannerText} numberOfLines={1}>
+                                Adding to: <Text style={{ color: Colors.teal, fontWeight: '700' }}>{albumTitle}</Text>
+                                {' '}· Position {trackPosition}
+                            </Text>
+                        </View>
+                    )}
 
-                    <View style={styles.sectionHeaderRow}>
-                        <Text style={styles.reviewLabel}>VIBE TAGS</Text>
-                        <TouchableOpacity onPress={() => setShowTagModal(true)}><Ionicons name="pencil-outline" size={18} color="#666" /></TouchableOpacity>
-                    </View>
-                    <View style={styles.tagWrap}>
-                        {reviewTags.map(tag => (
-                            <View key={tag.id} style={styles.tagPillReview}><Text style={styles.tagPillText}>{tag.displayName}</Text></View>
-                        ))}
-                    </View>
-                    <TouchableOpacity style={[styles.submitBtn, isFinalizing && { opacity: 0.6 }]} onPress={handleFinalize} disabled={isFinalizing}>
+                    <Text style={styles.reviewSectionTitle}>REVIEW YOUR TRACK</Text>
+                    <ReviewAudioCard
+                        trackUrl={draftData.trackUrl}
+                        trackTitle={draftData.title}
+                        thumbnailUrl={draftData.thumbnailUrl || artworkUri}
+                        durationStr={formatDuration(calculatedDuration)}
+                        sizeStr={`${(trackFile!.size! / (1024 * 1024)).toFixed(1)} MB`}
+                        duration={calculatedDuration}
+                    />
+
+                    {/* Chỉ hiển thị contributors và tags nếu không phải là luồng thêm vào album */}
+                    {!isAlbumFlow && (
+                        <>
+                            <View style={styles.sectionHeaderRow}>
+                                <Text style={styles.reviewLabel}>Contributors</Text>
+                            </View>
+                            <View style={styles.artistsRow}>
+                                {selectedContributors.map(c => (
+                                    <View key={c.artist.id} style={styles.artistItem}>
+                                        {c.artist.avatarUrl
+                                            ? <Image source={{ uri: c.artist.avatarUrl }} style={styles.artistAvatar} />
+                                            : <View style={[styles.artistAvatar, { backgroundColor: '#333' }]} />
+                                        }
+                                        <Text style={styles.artistLabel} numberOfLines={1}>{c.artist.name}</Text>
+                                        <Text style={styles.roleLabelSmall}>{c.role}</Text>
+                                    </View>
+                                ))}
+                            </View>
+
+                            <View style={styles.sectionHeaderRow}>
+                                <Text style={styles.reviewLabel}>VIBE TAGS ({reviewTags.length}/3)</Text>
+                                <TouchableOpacity onPress={() => setShowTagModal(true)}>
+                                    <Ionicons name="pencil-outline" size={18} color="#666" />
+                                </TouchableOpacity>
+                            </View>
+                            <View style={styles.tagWrap}>
+                                {reviewTags.map(tag => (
+                                    <TouchableOpacity
+                                        key={tag.id}
+                                        style={styles.tagPillReview}
+                                        onPress={() => setReviewTags(reviewTags.filter(t => t.id !== tag.id))}
+                                    >
+                                        <Text style={styles.tagPillText}>{tag.displayName}</Text>
+                                        <Ionicons name="close" size={14} color={Colors.teal} style={{ marginLeft: 6 }} />
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </>
+                    )}
+
+                    <TouchableOpacity
+                        style={[styles.submitBtn, isFinalizing && { opacity: 0.6 }]}
+                        onPress={handleFinalize}
+                        disabled={isFinalizing}
+                    >
                         <LinearGradient colors={['#A855F7', '#3B82F6']} style={styles.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                            {isFinalizing ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnText}>DONE</Text>}
+                            {isFinalizing
+                                ? <ActivityIndicator color="#FFF" />
+                                : <Text style={styles.btnText}>{isAlbumFlow ? `ADD TO ALBUM` : 'DONE'}</Text>
+                            }
                         </LinearGradient>
                     </TouchableOpacity>
                 </ScrollView>
@@ -463,74 +651,113 @@ export default function UploadTrackScreen() {
         );
     }
 
+    // ─── RENDER: Form ─────────────────────────────────────────────────────────────
     return (
         <View style={styles.safeArea}>
             {renderHeader('UPLOAD TRACK')}
-            <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                {/* File & Artwork input (giữ nguyên) */}
-                <TouchableOpacity style={styles.dropZone} onPress={pickTrack} activeOpacity={0.8}>
-                    <Ionicons name="cloud-upload-outline" size={42} color={Colors.teal} />
-                    <Text style={styles.dropTitle}>{trackFile ? trackFile.name : 'Select track file'}</Text>
-                    <Text style={styles.dropSubtitle}>MP3, WAV, FLAC (MAX 50MB)</Text>
-                </TouchableOpacity>
-
-                <View style={styles.formGroup}>
-                    <Text style={styles.label}>ART WORK</Text>
-                    <TouchableOpacity style={styles.artworkPicker} onPress={pickArtwork} activeOpacity={0.8}>
-                        {artworkUri ? <Image source={{ uri: artworkUri }} style={styles.fullImage} /> : <View style={{ alignItems: 'center' }}><Ionicons name="image-outline" size={32} color="#444" /></View>}
-                    </TouchableOpacity>
-                </View>
-
-                <View style={styles.formGroup}>
-                    <Text style={styles.label}>TRACK TITLE</Text>
-                    <TextInput style={styles.input} placeholder="Enter song name..." placeholderTextColor="#444" value={trackTitle} onChangeText={setTrackTitle} />
-                </View>
-
-                {/* --- PHẦN SEARCH VỚI LỰA CHỌN ROLE --- */}
-                <View style={[styles.formGroup, { zIndex: 100 }]}>
-                    <Text style={styles.label}>FEATURED & PRODUCERS</Text>
-                    <View style={styles.searchContainer}>
-                        <Ionicons name="search" size={16} color="#555" style={styles.searchIcon} />
-                        <TextInput style={[styles.input, { paddingLeft: 38, flex: 1 }]} placeholder="Search artist name..." placeholderTextColor="#444" value={artistQuery} onChangeText={setArtistQuery} />
-                        {isSearching && <ActivityIndicator style={styles.searchSpinner} color={Colors.teal} size="small" />}
-                    </View>
-
-                    {artistResults.length > 0 && (
-                        <View style={styles.suggestionBox}>
-                            {artistResults.map(item => (
-                                <View key={item.id} style={styles.suggestionItem}>
-                                    <Text style={styles.suggestionText} numberOfLines={1}>{item.name}</Text>
-                                    <View style={styles.roleActionRow}>
-                                        <TouchableOpacity style={styles.roleBtn} onPress={() => addContributor(item, 'PRODUCER')}>
-                                            <Text style={styles.roleBtnText}>+ Prod</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity style={[styles.roleBtn, {backgroundColor: Colors.teal}]} onPress={() => addContributor(item, 'FEATURED')}>
-                                            <Text style={styles.roleBtnText}>+ Feat</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-                            ))}
+            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                <ScrollView
+                    contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
+                    {/* Album context banner */}
+                    {isAlbumFlow && (
+                        <View style={styles.albumBanner}>
+                            <Ionicons name="albums-outline" size={14} color={Colors.teal} />
+                            <Text style={styles.albumBannerText} numberOfLines={1}>
+                                Adding to: <Text style={{ color: Colors.teal, fontWeight: '700' }}>{albumTitle}</Text>
+                                {' '}· Track {trackPosition}
+                            </Text>
                         </View>
                     )}
 
-                    <View style={styles.tagContainer}>
-                        {selectedContributors.map(c => (
-                            <View key={c.artist.id} style={styles.tag}>
-                                <Text style={styles.tagText}>{c.artist.name} <Text style={{fontSize: 9, opacity: 0.6}}>({c.role === 'PRODUCER' ? 'PRD' : 'FT'})</Text></Text>
-                                <TouchableOpacity onPress={() => setSelectedContributors(selectedContributors.filter(sc => sc.artist.id !== c.artist.id))}>
-                                    <Ionicons name="close-circle" size={16} color="#888" />
-                                </TouchableOpacity>
-                            </View>
-                        ))}
-                    </View>
-                </View>
+                    <TouchableOpacity style={styles.dropZone} onPress={pickTrack} activeOpacity={0.8}>
+                        <Ionicons name="cloud-upload-outline" size={42} color={Colors.teal} />
+                        <Text style={styles.dropTitle}>{trackFile ? trackFile.name : 'Select track file'}</Text>
+                        <Text style={styles.dropSubtitle}>MP3, WAV, FLAC (MAX 50MB)</Text>
+                    </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.submitBtn, !trackFile && styles.btnDisabled]} onPress={handleUpload} disabled={!trackFile} activeOpacity={0.85}>
-                    <LinearGradient colors={['#A855F7', '#3B82F6']} style={styles.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                        <Text style={styles.btnText}>UPLOAD TRACK</Text>
-                    </LinearGradient>
-                </TouchableOpacity>
-            </ScrollView>
+                    <View style={styles.formGroup}>
+                        <Text style={styles.label}>ART WORK</Text>
+                        <TouchableOpacity style={styles.artworkPicker} onPress={pickArtwork} activeOpacity={0.8}>
+                            {artworkUri
+                                ? <Image source={{ uri: artworkUri }} style={styles.fullImage} />
+                                : <View style={{ alignItems: 'center' }}><Ionicons name="image-outline" size={32} color="#444" /></View>
+                            }
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.formGroup}>
+                        <Text style={styles.label}>TRACK TITLE</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Enter song name..."
+                            placeholderTextColor="#444"
+                            value={trackTitle}
+                            onChangeText={setTrackTitle}
+                        />
+                    </View>
+
+                    <View style={[styles.formGroup, { zIndex: 100 }]}>
+                        <Text style={styles.label}>FEATURED & PRODUCERS</Text>
+                        <View style={styles.searchContainer}>
+                            <Ionicons name="search" size={16} color="#555" style={styles.searchIcon} />
+                            <TextInput
+                                style={[styles.input, { paddingLeft: 38, flex: 1 }]}
+                                placeholder="Search artist name..."
+                                placeholderTextColor="#444"
+                                value={artistQuery}
+                                onChangeText={setArtistQuery}
+                            />
+                            {isSearching && <ActivityIndicator style={styles.searchSpinner} color={Colors.teal} size="small" />}
+                        </View>
+
+                        {artistResults.length > 0 && (
+                            <View style={styles.suggestionBox}>
+                                {artistResults.map(item => (
+                                    <View key={item.id} style={styles.suggestionItem}>
+                                        <Text style={styles.suggestionText} numberOfLines={1}>{item.name}</Text>
+                                        <View style={styles.roleActionRow}>
+                                            <TouchableOpacity style={styles.roleBtn} onPress={() => addContributor(item, 'PRODUCER')}>
+                                                <Text style={styles.roleBtnText}>+ Prod</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={[styles.roleBtn, { backgroundColor: Colors.teal }]} onPress={() => addContributor(item, 'FEATURED')}>
+                                                <Text style={styles.roleBtnText}>+ Feat</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
+
+                        <View style={styles.tagContainer}>
+                            {selectedContributors.map(c => (
+                                <View key={c.artist.id} style={styles.tag}>
+                                    <Text style={styles.tagText}>
+                                        {c.artist.name}{' '}
+                                        <Text style={{ fontSize: 9, opacity: 0.6 }}>({c.role === 'PRODUCER' ? 'PRD' : 'FT'})</Text>
+                                    </Text>
+                                    <TouchableOpacity onPress={() => setSelectedContributors(selectedContributors.filter(sc => sc.artist.id !== c.artist.id))}>
+                                        <Ionicons name="close-circle" size={16} color="#888" />
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                        </View>
+                    </View>
+
+                    <TouchableOpacity
+                        style={[styles.submitBtn, !trackFile && styles.btnDisabled]}
+                        onPress={handleUpload}
+                        disabled={!trackFile}
+                        activeOpacity={0.85}
+                    >
+                        <LinearGradient colors={['#A855F7', '#3B82F6']} style={styles.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                            <Text style={styles.btnText}>UPLOAD TRACK</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </View>
     );
 }
@@ -545,9 +772,14 @@ const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: '#000' },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#000', borderBottomWidth: 1, borderBottomColor: '#111', zIndex: 10 },
     backBtn: { position: 'absolute', left: 16, width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: '#333', justifyContent: 'center', alignItems: 'center' },
-    headerTitles: { alignItems: 'center' },
+    headerTitles: { alignItems: 'center', maxWidth: width - 100 },
     headerStudio: { color: '#555', fontSize: 10, fontWeight: 'bold', letterSpacing: 1.5 },
     headerTitle: { color: '#FFF', fontSize: 14, fontWeight: 'bold' },
+
+    // Album context banner
+    albumBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(51,210,148,0.08)', borderWidth: 1, borderColor: 'rgba(51,210,148,0.2)', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 20 },
+    albumBannerText: { color: '#AAA', fontSize: 12, flex: 1 },
+
     scrollContent: { padding: 20 },
     dropZone: { borderWidth: 1, borderColor: '#1E1E1E', borderRadius: 16, borderStyle: 'dashed', padding: 30, alignItems: 'center', backgroundColor: '#080808', marginBottom: 24, gap: 6 },
     dropTitle: { color: '#FFF', fontWeight: '700', fontSize: 13, textAlign: 'center' },
@@ -560,15 +792,12 @@ const styles = StyleSheet.create({
     searchContainer: { flexDirection: 'row', alignItems: 'center', position: 'relative' },
     searchIcon: { position: 'absolute', left: 14, zIndex: 1 },
     searchSpinner: { position: 'absolute', right: 12 },
-    
-    // Suggestion box styles
     suggestionBox: { backgroundColor: '#111', borderRadius: 12, marginTop: 6, borderWidth: 1, borderColor: '#2A2A2A', position: 'absolute', top: 56, left: 0, right: 0, zIndex: 1000 },
     suggestionItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderBottomWidth: 1, borderBottomColor: '#1A1A1A' },
     suggestionText: { color: '#FFF', flex: 1, fontSize: 13, fontWeight: '600' },
     roleActionRow: { flexDirection: 'row', gap: 8 },
     roleBtn: { backgroundColor: '#333', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
     roleBtnText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
-
     tagContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
     tag: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#111', borderWidth: 1, borderColor: '#2A2A2A', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, gap: 6 },
     tagText: { color: '#FFF', fontSize: 12 },
@@ -584,29 +813,30 @@ const styles = StyleSheet.create({
     loadingSubtitle: { color: '#555', fontSize: 13, textAlign: 'center', marginTop: 10 },
     reviewSectionTitle: { color: '#FFF', fontWeight: '800', fontSize: 16, marginBottom: 18 },
     audioCard: { backgroundColor: '#080808', borderRadius: 18, padding: 18, marginBottom: 24, borderWidth: 1, borderColor: '#1A1A1A' },
-    waveformContainer: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 50, marginBottom: 8 },
-    waveBar: { width: 5, borderRadius: 3 },
-    timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-    timeText: { color: '#555', fontSize: 11 },
-    playerControls: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
-    playPauseBtn: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, borderColor: Colors.teal, justifyContent: 'center', alignItems: 'center' },
-    progressBar: { flex: 1, height: 4, backgroundColor: '#1A1A1A', borderRadius: 2 },
-    progressFill: { height: '100%', backgroundColor: Colors.teal, borderRadius: 2 },
-    trackInfoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    trackThumb: { width: 46, height: 46, borderRadius: 10 },
-    trackName: { color: '#FFF', fontWeight: '700', fontSize: 13 },
-    trackSize: { color: '#555', fontSize: 11 },
+    waveformContainer: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 60, marginBottom: 20 },
+    waveBar: { width: 3.5, borderRadius: 2 },
+    sliderWrap: { flex: 1 },
+    timeRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 6 },
+    timeText: { color: '#666', fontSize: 10, fontWeight: '600' },
+    playerControls: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    playPauseBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(51, 210, 148, 0.1)', borderWidth: 1, borderColor: Colors.teal, justifyContent: 'center', alignItems: 'center' },
+    progressBarWrapper: { height: 20, justifyContent: 'center' },
+    progressBar: { height: 6, backgroundColor: '#1A1A1A', borderRadius: 3, position: 'relative' },
+    progressFill: { height: '100%', backgroundColor: Colors.teal, borderRadius: 3 },
+    progressKnob: { position: 'absolute', width: 14, height: 14, borderRadius: 7, backgroundColor: Colors.white, top: -4, marginLeft: -7 },
+    trackInfoRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+    trackThumb: { width: 56, height: 56, borderRadius: 12 },
+    trackName: { color: '#FFF', fontWeight: '700', fontSize: 15, marginBottom: 4 },
+    trackSize: { color: '#777', fontSize: 12 },
     sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
     reviewLabel: { color: '#FFF', fontWeight: '700', fontSize: 14 },
-    reviewLabelSub: { color: '#555', fontSize: 12 },
     artistsRow: { flexDirection: 'row', gap: 16, marginBottom: 24, flexWrap: 'wrap' },
     artistItem: { alignItems: 'center', width: 65 },
     artistAvatar: { width: 52, height: 52, borderRadius: 26 },
     artistLabel: { color: '#CCC', fontSize: 10, textAlign: 'center', marginTop: 4 },
     roleLabelSmall: { color: Colors.teal, fontSize: 8, fontWeight: 'bold', marginTop: 2 },
-
     tagWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
-    tagPillReview: { borderWidth: 1, borderColor: Colors.teal, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
+    tagPillReview: { borderWidth: 1, borderColor: Colors.teal, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, flexDirection: 'row', alignItems: 'center' },
     tagPillText: { color: Colors.teal, fontSize: 13 },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
     modalContainer: { backgroundColor: '#000', borderTopLeftRadius: 24, borderTopRightRadius: 24, height: '90%' },
@@ -617,14 +847,13 @@ const styles = StyleSheet.create({
     modalHeaderTitle: { color: '#FFF', fontSize: 14, fontWeight: 'bold' },
     modalContent: { padding: 20 },
     modalLabel: { color: '#888', fontSize: 12, fontWeight: '700' },
-    maxTagsText: { color: '#888', fontSize: 11 },
-    tagSelected: { borderWidth: 1.5, borderColor: Colors.teal, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
-    tagSelectedText: { color: Colors.teal, fontSize: 13, fontWeight: '700' },
-    tagUnselected: { borderWidth: 1, borderColor: '#333', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
+    tagSelected: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: Colors.teal, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: 'rgba(51, 210, 148, 0.1)' },
+    tagSelectedText: { color: Colors.teal, fontSize: 13, fontWeight: '800' },
+    tagUnselected: { borderWidth: 1, borderColor: '#333', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
     tagUnselectedText: { color: '#FFF', fontSize: 13 },
     tagDisabled: { opacity: 0.3 },
-    modalOkBtn: { alignSelf: 'center', borderWidth: 1.5, borderColor: Colors.teal, borderRadius: 20, paddingHorizontal: 40, paddingVertical: 12, marginTop: 20 },
+    modalOkBtn: { alignSelf: 'center', borderWidth: 1.5, borderColor: Colors.teal, borderRadius: 20, paddingHorizontal: 40, paddingVertical: 12, marginTop: 20, marginBottom: 40 },
     modalOkText: { color: Colors.teal, fontWeight: '700' },
     modalDivider: { height: 1, backgroundColor: '#222', marginVertical: 20 },
-    choiceRowHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+    choiceRowHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
 });

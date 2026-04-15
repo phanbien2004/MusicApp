@@ -1,13 +1,85 @@
 import { Colors } from '@/constants/theme';
+import {
+    ArtistProfilelDTO,
+    approveArtistProfileAPI,
+    getArtistProfileByIdAPI,
+    rejectArtistProfileAPI
+} from '@/services/admin/adminService';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ApplicantDetail() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { id } = useLocalSearchParams<{ id: string }>();
+
+    const [isSubmitting, setIsSubmitting] = React.useState(false);
+    const [profile, setProfile] = React.useState<ArtistProfilelDTO | null>(null);
+    const [toastMessage, setToastMessage] = React.useState<{ text: string, type: 'success' | 'error' } | null>(null);
+
+    React.useEffect(() => {
+        if (id) {
+            fetchDetail();
+        }
+    }, [id]);
+
+    const fetchDetail = async () => {
+        try {
+            const data = await getArtistProfileByIdAPI(id);
+            setProfile(data);
+        } catch (error) {
+            console.error("Error fetching artist details:", error);
+            showToast("Cannot fetch registration details", "error");
+        }
+    }
+
+    const showToast = (text: string, type: 'success' | 'error', autoBack: boolean = false) => {
+        setToastMessage({ text, type });
+        setTimeout(() => {
+            setToastMessage(null);
+            if (autoBack) router.back();
+        }, 1500);
+    }
+
+    const handleApprove = async () => {
+        if (!id || profile?.status !== 'PENDING') return;
+        setIsSubmitting(true);
+        try {
+            await approveArtistProfileAPI(id);
+            showToast("Artist approved successfully!", "success", true);
+        } catch (error) {
+            console.error("Approve error:", error);
+            showToast("Approve failed", "error");
+            setIsSubmitting(false);
+        }
+    }
+
+    const handleReject = async () => {
+        if (!id || profile?.status !== 'PENDING') return;
+        setIsSubmitting(true);
+        try {
+            await rejectArtistProfileAPI(id);
+            showToast("Application rejected successfully!", "success", true);
+        } catch (error) {
+            console.error("Reject error:", error);
+            showToast("Reject failed", "error");
+            setIsSubmitting(false);
+        }
+    }
+
+    if (!profile) {
+        return (
+            <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' }]}>
+                <StatusBar barStyle="light-content" />
+                <ActivityIndicator size="large" color={Colors.teal} />
+            </View>
+        );
+    }
+
+    const isActionDisabled = isSubmitting || profile.status !== 'PENDING';
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -28,38 +100,76 @@ export default function ApplicantDetail() {
                 {/* ... (Các phần Profile, Asset, Biography giữ nguyên như cũ) ... */}
                 
                 <View style={styles.profileSection}>
-                    <View style={styles.largeAvatar} />
-                    <Text style={styles.artistName}>ARTIST 01</Text>
-                    <Text style={styles.appliedTime}>Applied 10 hours ago</Text>
+                    {profile.avatarUrl ? (
+                        <Image source={{ uri: profile.avatarUrl }} style={styles.largeAvatar} />
+                    ) : (
+                        <View style={styles.largeAvatar} />
+                    )}
+                    <Text style={styles.artistName}>{profile.stageName}</Text>
+                    <Text style={styles.appliedTime}>
+                        Applied {profile.createdAt ? new Date(profile.createdAt).toLocaleDateString() : 'N/A'}
+                    </Text>
                 </View>
 
                 <View style={styles.section}>
-                    <Text style={styles.sectionLabel}>IDENTIFY ASSET</Text>
-                    <View style={styles.assetBox} />
+                    <Text style={styles.sectionLabel}>IDENTIFY ASSET (COVER)</Text>
+                    {profile.coverUrl ? (
+                        <Image source={{ uri: profile.coverUrl }} style={styles.assetBox} resizeMode="cover" />
+                    ) : (
+                        <View style={styles.assetBox} />
+                    )}
                 </View>
 
                 <View style={styles.section}>
                     <View style={styles.bioBox}>
                         <Text style={styles.sectionLabel}>BIOGRAPHY</Text>
                         <Text style={styles.bioText}>
-                            Electronic producer from Berlin focusing on atmospheric phonk and dark synthwave textures. 
+                            {profile.bio || "No biography provided."}
                         </Text>
                     </View>
                 </View>
 
                 {/* ─── ACTIONS ─── */}
                 <View style={styles.actionSection}>
-                    <TouchableOpacity style={styles.approveBtn}>
-                        <Ionicons name="checkmark-circle-outline" size={24} color={Colors.teal} />
-                        <Text style={styles.approveText}>APPROVE & VERIFY ARTIST</Text>
+                    <TouchableOpacity 
+                        style={[styles.approveBtn, isActionDisabled && { opacity: 0.5 }]} 
+                        onPress={handleApprove} 
+                        disabled={isActionDisabled}
+                    >
+                        {isSubmitting ? (
+                            <ActivityIndicator size="small" color={Colors.teal} />
+                        ) : (
+                            <>
+                                <Ionicons name="checkmark-circle-outline" size={24} color={Colors.teal} />
+                                <Text style={styles.approveText}>APPROVE & VERIFY ARTIST</Text>
+                            </>
+                        )}
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.rejectBtn}>
+                    <TouchableOpacity 
+                        style={[styles.rejectBtn, isActionDisabled && { opacity: 0.5 }]} 
+                        onPress={handleReject} 
+                        disabled={isActionDisabled}
+                    >
                         <Ionicons name="close-circle-outline" size={24} color="#FF5555" />
                         <Text style={styles.rejectText}>REJECT APPLICATION</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
+
+            {/* ─── TOAST NOTIFICATION ─── */}
+            {toastMessage && (
+                <View style={[styles.toastContainer, toastMessage.type === 'error' && styles.toastError]}>
+                    <Ionicons 
+                        name={toastMessage.type === 'success' ? 'checkmark-circle' : 'alert-circle'} 
+                        size={20} 
+                        color={toastMessage.type === 'success' ? Colors.teal : '#FF5555'} 
+                    />
+                    <Text style={[styles.toastText, toastMessage.type === 'error' && { color: '#FF5555' }]}>
+                        {toastMessage.text}
+                    </Text>
+                </View>
+            )}
         </View>
     );
 }
@@ -84,5 +194,30 @@ const styles = StyleSheet.create({
     approveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1A2A1A', padding: 18, borderRadius: 30, borderWidth: 1, borderColor: '#2E4D2E', gap: 10 },
     approveText: { color: Colors.teal, fontWeight: 'bold', fontSize: 13 },
     rejectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#2A1A1A', padding: 18, borderRadius: 30, borderWidth: 1, borderColor: '#4D2E2E', gap: 10 },
+    toastContainer: {
+        position: 'absolute',
+        top: 60,
+        alignSelf: 'center',
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#1A2A1A',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#2E4D2E',
+        gap: 10,
+        zIndex: 100,
+        elevation: 5,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 5,
+    },
+    toastError: {
+        backgroundColor: '#2A1111',
+        borderColor: '#4D2E2E',
+    },
+    toastText: { color: Colors.teal, fontWeight: 'bold', fontSize: 13 },
     rejectText: { color: '#FF5555', fontWeight: 'bold', fontSize: 13 },
 });

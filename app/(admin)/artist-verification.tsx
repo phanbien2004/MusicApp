@@ -1,21 +1,31 @@
 import { Colors } from '@/constants/theme';
+import { AllPendingArtistProfilePreviewDTO, getAllPendingArtistProfilesAPI } from '@/services/admin/adminService';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React from 'react';
-import { FlatList, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { FlatList, Image, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const MOCK_DATA = [
-    { id: '1', name: 'Artist 01', time: '10h AGO' },
-    { id: '2', name: 'Artist 02', time: '8h AGO' },
-    { id: '3', name: 'Artist 03', time: '4h AGO' },
-    { id: '4', name: 'Artist 04', time: '2h AGO' },
-    { id: '5', name: 'Artist 05', time: '2h AGO' },
-];
 
 export default function ArtistVerification() {
     const router = useRouter();
     const insets = useSafeAreaInsets(); // Lấy thông tin vùng an toàn
+    
+    const [pendingList, setPendingList] = useState<AllPendingArtistProfilePreviewDTO[]>([]);
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchPendingArtists();
+        }, [])
+    );
+
+    const fetchPendingArtists = async () => {
+        try {
+            const data = await getAllPendingArtistProfilesAPI();
+            setPendingList(data);
+        } catch (error) {
+            console.error("Error fetching pending artists:", error);
+        }
+    }
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -28,28 +38,41 @@ export default function ArtistVerification() {
                 </TouchableOpacity>
                 <View>
                     <Text style={styles.headerTitle}>ARTIST REGISTRY</Text>
-                    <Text style={styles.headerSubtitle}>84 PENDING APPLICATION</Text>
+                    <Text style={styles.headerSubtitle}>{pendingList.length} PENDING APPLICATION{pendingList.length !== 1 ? 'S' : ''}</Text>
                 </View>
             </View>
 
             {/* ─── LIST ─── */}
             <FlatList
-                data={MOCK_DATA}
-                keyExtractor={(item) => item.id}
+                data={pendingList}
+                keyExtractor={(item) => item.id.toString()}
                 contentContainerStyle={styles.listContent}
-                renderItem={({ item }) => (
-                    <TouchableOpacity 
-                        style={styles.card} 
-                        onPress={() => router.push('/(admin)/applicant-detail' as any)}
-                    >
-                        <View style={styles.avatarPlaceholder} />
-                        <View style={styles.info}>
-                            <Text style={styles.name}>{item.name}</Text>
-                            <Text style={styles.time}>{item.time}</Text>
-                        </View>
-                        <Ionicons name="eye-outline" size={24} color="#666" />
-                    </TouchableOpacity>
-                )}
+                renderItem={({ item }) => {
+                    // Logic tính thời gian hiển thị (tạm thời để hiển thị ngày tạo hoặc text thô nếu cần)
+                    // const timeAgo = calculateTimeAgo(item.createdAt); 
+                    
+                    return (
+                        <TouchableOpacity 
+                            style={styles.card} 
+                            onPress={() => router.push({
+                                pathname: '/(admin)/applicant-detail',
+                                params: { id: item.id.toString() }
+                            } as any)}
+                        >
+                            {item.avatarUrl ? (
+                                <Image source={{ uri: item.avatarUrl }} style={styles.avatarPlaceholder} />
+                            ) : (
+                                <View style={styles.avatarPlaceholder} />
+                            )}
+                            <View style={styles.info}>
+                                <Text style={styles.name}>{item.stageName  || "Unknown Artist"}</Text>
+                                {/* Có thể hiển thị createdAt chỗ này */}
+                                <Text style={styles.time}>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}</Text>
+                            </View>
+                            <Ionicons name="eye-outline" size={24} color="#666" />
+                        </TouchableOpacity>
+                    );
+                }}
             />
 
             {/* ─── PAGINATION (Sử dụng insets.bottom để tránh vạch home) ─── */}
@@ -77,3 +100,4 @@ const styles = StyleSheet.create({
     pagination: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20 },
     pageText: { color: '#FFF', fontSize: 14, fontWeight: 'bold' }
 });
+

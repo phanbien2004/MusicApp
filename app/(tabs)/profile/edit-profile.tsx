@@ -6,6 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
+import { usePlayer } from '@/context/player-context';
 import {
     Alert, Image, Platform,
     SafeAreaView,
@@ -17,10 +18,17 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import Toast from 'react-native-root-toast';
 
 export default function EditProfileScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
+    const { lastActiveTab } = usePlayer();
+
+    const handleBack = () => {
+        const tab = lastActiveTab || 'profile';
+        router.navigate(`/(tabs)/${tab}` as any);
+    };
     
     // Khởi tạo state từ tham số truyền vào
     const [displayName, setDisplayName] = useState((params.name as string) || '');
@@ -51,7 +59,7 @@ export default function EditProfileScreen() {
 
     const handleSave = async () => {
         if (!displayName.trim()) {
-            return Alert.alert("Lỗi", "Vui lòng nhập tên hiển thị!");
+            return Toast.show("Please enter display name!", { duration: Toast.durations.SHORT });
         }
 
         setIsSubmitting(true);
@@ -60,30 +68,30 @@ export default function EditProfileScreen() {
 
             // Nếu user có chọn ảnh mới -> Phải up lên MinIO
             if (avatarFile) {
-                console.log("=> Xin link Presigned cho Avatar mới...");
+                console.log("=> Requesting Presigned link for new Avatar...");
                 const avatarRes = await getPresignedUploadUrl(avatarFile.name, avatarFile.type, "avatars");
                 
-                console.log("=> Đẩy Avatar mới lên MinIO...");
+                console.log("=> Uploading new Avatar to MinIO...");
                 console.log(avatarFile.type);
                 await uploadFileToMinIO(avatarFile.uri, avatarFile.type, avatarRes.url);
                 
                 finalAvatarKey = avatarRes.key;
             }
 
-            console.log("=> Gọi API Cập nhật tài khoản...");
+            console.log("=> Calling Update Account API...");
             const responseData = await updateProfileAPI({
                 displayName: displayName,
                 avatarKey: finalAvatarKey // LƯU Ý: Nếu gửi null, báo Backend bỏ qua không cập nhật avatarKey
             });
 
-            console.log("=> Thành công:", responseData);
-            Alert.alert("Thành công", "Đã cập nhật hồ sơ!");
-            router.replace('/(tabs)/profile' as any); // Chuyển thẳng về trang cá nhân
+            console.log("=> Success:", responseData);
+            Toast.show("Profile updated successfully!", { duration: Toast.durations.SHORT });
+            handleBack();
             
         } catch (error: any) {
-            console.log("=> Lỗi cập nhật:", error);
+            console.log("=> Update error:", error);
             const errMsg = error.response?.data?.message || error.message || JSON.stringify(error);
-            Alert.alert("Lỗi", "Không thể cập nhật: " + errMsg);
+            Toast.show("Update failed: " + errMsg, { duration: Toast.durations.SHORT });
         } finally {
             setIsSubmitting(false);
         }
@@ -95,7 +103,7 @@ export default function EditProfileScreen() {
 
             {/* HEADER */}
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+                <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
                     <Ionicons name="chevron-back" size={20} color={Colors.white} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Edit Profile</Text>

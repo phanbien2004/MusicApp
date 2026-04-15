@@ -15,9 +15,12 @@ import {
     View,
 } from 'react-native';
 
-import { getMemberPlayListAPI, PlayList } from '@/services/listService';
+import { IMAGE } from '@/constants/image';
+import { PlayList } from '@/services/listService';
+import { getMySubscriptionAPI } from '@/services/paymentService';
 import { getProfileAPI, ProfileResponse } from '@/services/profileService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 // Tính toán độ rộng của card playlist (chia 2 cột)
@@ -27,28 +30,30 @@ export default function ProfileScreen() {
     const router = useRouter();
     const [profileData, setProfileData] = useState<ProfileResponse | null>(null);
     const [playlists, setPlaylists] = useState<PlayList[] | null>(null);
+    const [isPremium, setIsPremium] = useState(false);
 
-    const fetchProfile = useCallback(async () => {
+    const fetchProfileData = useCallback(async () => {
         try {
             const userId = await AsyncStorage.getItem('userId');
             if (userId) {
-                // Lấy thông tin cá nhân
-                const resProfile = await getProfileAPI(userId);
-                setProfileData(resProfile);
+                // Fetch profile
+                getProfileAPI(userId).then(res => setProfileData(res)).catch(e => console.log(e));
                 
-                // Lấy danh sách Playlist
-                const resPlayList = await getMemberPlayListAPI(userId);
-                setPlaylists(resPlayList);
+                // Fetch premium status độc lập để hiển thị viền Avatar và UI
+                getMySubscriptionAPI().then(subscription => {
+                     // Kiểm tra nếu isActive là true và nó là PREMIUM
+                     setIsPremium(subscription?.isActive || false);
+                }).catch(e => console.log("Error loading premium plan: ", e?.message));
             }
         } catch (error) {
-            console.error("Lỗi khi tải dữ liệu profile:", error);
+            console.error("Error fetching general profile:", error);
         }
     }, []);
 
     useFocusEffect(
         useCallback(() => {
-            fetchProfile();
-        }, [fetchProfile])
+            fetchProfileData();
+        }, [fetchProfileData])
     );
 
     return (
@@ -75,15 +80,32 @@ export default function ProfileScreen() {
                 {/* ─── PROFILE CARD ─── */}
                 <View style={styles.profileCard}>
                     <View style={styles.profileTop}>
-                        {profileData?.avatarUrl ? (
-                            <Image source={{ uri: profileData.avatarUrl }} style={styles.avatarImg} />
+                        {isPremium ? (
+                            <LinearGradient
+                                colors={['#FACC15', '#A16207', '#FEF08A']}
+                                style={styles.premiumBorder}
+                                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                            >
+                                {profileData?.avatarUrl ? (
+                                    <Image source={{ uri: profileData.avatarUrl }} style={[styles.avatarImg, { borderWidth: 0 }]} />
+                                ) : (
+                                    <View style={[styles.avatar, { borderWidth: 0 }]}>
+                                        <Ionicons name="person" size={34} color={Colors.gray} />
+                                    </View>
+                                )}
+                            </LinearGradient>
                         ) : (
-                            <View style={styles.avatarPlaceholder}>
-                                <Ionicons name="person" size={36} color={Colors.gray} />
-                            </View>
+                            profileData?.avatarUrl ? (
+                                <Image source={{ uri: profileData.avatarUrl }} style={styles.avatarImg} />
+                            ) : (
+                                <View style={styles.avatar}>
+                                    <Ionicons name="person" size={36} color={Colors.gray} />
+                                </View>
+                            )
                         )}
                         <View style={styles.profileInfo}>
-                            <Text style={styles.profileName}>{profileData?.displayName || 'User'}</Text>
+                            <Text style={styles.profileName}>{profileData?.displayName}</Text>
+                            {isPremium && <Text style={{ color: '#FACC15', fontSize: 11, fontWeight: '700' }}>PREMIUM</Text>}
                         </View>
                     </View>
 
@@ -119,7 +141,17 @@ export default function ProfileScreen() {
                                 style={[styles.artistBtn, { borderColor: Colors.teal, borderWidth: 1, backgroundColor: 'transparent' }]}
                                 onPress={() => router.push({ pathname: '/profile/register-artist', params: { mode: 'update' } } as any)}>
                                 <Ionicons name="time-outline" size={16} color={Colors.teal} />
-                                <Text style={[styles.artistBtnText, { color: Colors.teal }]}>Pending Review</Text>
+                                <Text style={[styles.artistBtnText, { color: Colors.teal }]}>Pending Edit</Text>
+                            </TouchableOpacity>
+                        ) : profileData?.artistProfileStatus === 'REJECTED' ? (
+                            <TouchableOpacity
+                                style={[styles.artistBtn, { backgroundColor: '#8B0000' }]}
+                                onPress={() => router.push({
+                                    pathname: '/(tabs)/profile/register-artist',
+                                    params: { mode: 'retry' }
+                                } as any)}>
+                                <Ionicons name="close-circle-outline" size={16} color={Colors.white} />
+                                <Text style={styles.artistBtnText}>Rejected — Retry</Text>
                             </TouchableOpacity>
                         ) : (
                             <TouchableOpacity
@@ -139,9 +171,8 @@ export default function ProfileScreen() {
                         <Ionicons name="add" size={22} color={Colors.white} />
                     </TouchableOpacity>
                 </View>
-
                 <View style={styles.playlistsGrid}>
-                    {playlists?.map(item => (
+                    {profileData?.playlists?.map(item => (
                         <TouchableOpacity 
                             key={item.id} 
                             style={styles.playlistCard} 
@@ -151,15 +182,12 @@ export default function ProfileScreen() {
                             {item.thumbnailUrl ? (
                                 <Image source={{ uri: item.thumbnailUrl }} style={styles.playlistThumb} />
                             ) : (
-                                <View style={[styles.playlistThumb, { backgroundColor: Colors.teal, justifyContent: 'center', alignItems: 'center' }]}>
-                                    <Ionicons name="musical-notes" size={30} color="rgba(255,255,255,0.5)" />
-                                </View>
+                                <Image source={IMAGE.defaultThumbnail} style={styles.playlistThumb} />
                             )}
                             <Text style={styles.playlistName} numberOfLines={1}>{item.title}</Text>
                         </TouchableOpacity>
                     ))}
                 </View>
-
             </ScrollView>
         </SafeAreaView>
     );
@@ -175,7 +203,8 @@ const styles = StyleSheet.create({
     // Profile Card
     profileCard: { marginHorizontal: 16, backgroundColor: '#0D0D0D', borderRadius: 20, borderWidth: 1, borderColor: '#1E1E1E', padding: 20, gap: 18, marginBottom: 20 },
     profileTop: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-    avatarPlaceholder: { width: 72, height: 72, borderRadius: 14, backgroundColor: '#2A2A2A', borderWidth: 1, borderColor: '#333', alignItems: 'center', justifyContent: 'center' },
+    premiumBorder: { padding: 3, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+    avatar: { width: 72, height: 72, borderRadius: 14, backgroundColor: '#2A2A2A', borderWidth: 1, borderColor: '#333', alignItems: 'center', justifyContent: 'center' },
     avatarImg: { width: 72, height: 72, borderRadius: 14, borderWidth: 1, borderColor: '#333' },
     profileInfo: { gap: 4 },
     profileName: { fontSize: 22, fontWeight: '800', color: Colors.white },
@@ -198,6 +227,6 @@ const styles = StyleSheet.create({
     addBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#2A2A2A' },
     playlistsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 16 },
     playlistCard: { width: PLAYLIST_CARD_WIDTH, gap: 10 },
-    playlistThumb: { width: '100%', aspectRatio: 1, borderRadius: 14, borderWidth: 1, borderColor: '#2A2A2A', overflow: 'hidden' },
+    playlistThumb: { width: '100%', height: 180, borderRadius: 14, borderWidth: 1, borderColor: '#2A2A2A', overflow: 'hidden' },
     playlistName: { fontSize: 14, fontWeight: '600', color: Colors.white, paddingLeft: 4 },
 });

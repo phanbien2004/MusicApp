@@ -19,19 +19,19 @@ export default function JamScreen() {
     const { activeSession, isHydrated } = useJam();
     const activeJamId = activeSession?.sessionId;
 
-    if (!isHydrated) {
-        return (
-            <SafeAreaView style={styles.safeArea}>
-                <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator color={Colors.teal} size="large" />
-                </View>
-            </SafeAreaView>
-        );
-    }
+    // if (!isHydrated) {
+    //     return (
+    //         <SafeAreaView style={styles.safeArea}>
+    //             <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+    //             <View style={styles.loadingContainer}>
+    //                 <ActivityIndicator color={Colors.teal} size="large" />
+    //             </View>
+    //         </SafeAreaView>
+    //     );
+    // }
 
     if (activeJamId) {
-        return <Redirect href={`/jam/jamroom?jamId=${activeJamId}` as any} />;
+        return <Redirect href={`/(tabs)/jam/jamroom?jamId=${activeJamId}` as any} />;
     }
 
     return (
@@ -54,7 +54,7 @@ export default function JamScreen() {
                 <TouchableOpacity
                     style={styles.card}
                     activeOpacity={0.8}
-                    onPress={() => router.push('/jam/setupjam' as any)}>
+                    onPress={() => router.push('/(tabs)/jam/setupjam' as any)}>
                     <View style={[styles.iconWrapper, { backgroundColor: '#3D2B6B' }]}>
                         <Ionicons name="shield-checkmark" size={32} color="#A78BFA" />
                     </View>
@@ -70,7 +70,7 @@ export default function JamScreen() {
                 <TouchableOpacity
                     style={styles.card}
                     activeOpacity={0.8}
-                    onPress={() => router.push('/jam/joinjam' as any)}>
+                    onPress={() => router.push('/(tabs)/jam/joinjam' as any)}>
                     <View style={[styles.iconWrapper, { backgroundColor: '#0F2D24' }]}>
                         <Ionicons name="git-merge" size={32} color={Colors.teal} />
                     </View>
