@@ -116,6 +116,7 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
     const refreshQueue = async (trackIdOverride?: number) => {
         try {
             const queueResponse = await getPlayerQueueAPI(PLAYER_QUEUE_LIMIT);
+            console.log("----------------",queueResponse);
             const normalizedQueue = (queueResponse.content || []).map((item) =>
                 normalizeTrack(item),
             );
@@ -128,6 +129,18 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
             queueCursorRef.current = nextQueueCursor;
             setQueue(normalizedQueue);
             setQueueCursor(nextQueueCursor);
+            if (activeSession?.isHost && clientRef.current?.connected) {
+                console.log("-----------------------------------------++++++");
+                console.log("?//////////", queueResponse);
+                clientRef.current.publish({
+                    destination: '/app/jam/player-state/queue',
+                    body: JSON.stringify({
+                        jamId: activeSession.sessionId,
+                        tracks: queueResponse
+                    })
+                });
+                console.log("********************************************");
+            }
         } catch (error) {
             console.error('Failed to refresh player queue:', error);
             queueRef.current = [];
@@ -353,6 +366,20 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
             setCurrentTrackState(normalizedTrack);
             return;
         }
+        if (!isReceiptFromJam && activeSession?.isHost && clientRef.current?.connected) {
+            const newIndex = queueRef.current.findIndex(t => t.id === track.id);
+            if (newIndex >= 0) {
+                console.log("--------------------+++++---------------------");
+                clientRef.current.publish({
+                    destination: '/app/jam/player-state/queue/index',
+                    body: JSON.stringify({
+                        jamId: activeSession.sessionId,
+                        index: newIndex 
+                    })
+                });
+                console.log("*********************+++++***********************");
+            }
+        }
 
         if (!activeSession) {
             const nextPlaybackContext: PlaybackContext = {
@@ -416,7 +443,6 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
                     }),
                 });
             }
-
             client.publish({
                 destination: '/app/jam/notification',
                 body: JSON.stringify({
@@ -444,16 +470,11 @@ export const CurrentTrackProvider = ({ children }: { children: React.ReactNode }
 
         playbackContextRef.current = { source: 'jam' };
         setActivePlaybackContext({ source: 'jam' });
-
-        // Giữ lại queue cho host để next/prev vẫn hoạt động,
-        // chỉ cập nhật cursor đến vị trí bài vừa phát
         const newCursor = queueRef.current.findIndex((t) => t.id === normalizedTrack.id);
         if (newCursor >= 0) {
             queueCursorRef.current = newCursor;
             setQueueCursor(newCursor);
         } else {
-            // Bài không có trong queue → Host pick album/playlist mới
-            // Cần lưu state lên server với nhóm mới để lấy lại danh sách queue
             try {
                 const memberId = await ensureMemberId();
                 if (memberId) {

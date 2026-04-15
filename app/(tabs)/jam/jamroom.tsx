@@ -27,7 +27,7 @@ import { useCurrentTrack } from '@/context/currentTrack-context';
 import { useJam } from '@/context/jam-context';
 
 import { createStompClient } from '@/api/apiSocket';
-import { deleteJamSessionAPI, inviteJamSessionAPI, leaveJamSessionAPI, updateJamSessionAPI, getJam } from '@/services/jamService';
+import { deleteJamSessionAPI, getJam, inviteJamSessionAPI, leaveJamSessionAPI, updateJamSessionAPI } from '@/services/jamService';
 import { searchAPI } from '@/services/searchService';
 
 import { acceptNotification, acceptNotificationRequestDTO } from '@/services/jamService';
@@ -129,7 +129,7 @@ export default function JamRoomScreen() {
     useEffect(() => {
         return () => { if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current); };
     }, []);
-
+    
 
     const handleSearchInvites = async (query: string) => {
         if (!query.trim()) return;
@@ -302,6 +302,24 @@ export default function JamRoomScreen() {
                     const data = JSON.parse(msg.body);
                     console.log("Receipt Messenger Track", data);
                     handlePlaybackSync(data, true);
+                }catch (error) {
+                    console.error("❌ Lỗi Parse JSON:", error);
+                }
+            })
+            client.subscribe(`/jam/player-state/queue/${activeSession.sessionId}`, (msg) => {
+                try {
+                    console.log(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<");
+                    const data = JSON.parse(msg.body);
+                    console.log(data);
+                }catch (error) {
+                    console.error("❌ Lỗi Parse JSON:", error);
+                }
+            })
+            client.subscribe(`/jam/player-state/queue/index/${activeSession.sessionId}`, (msg) => {
+                try {
+                    const data = JSON.parse(msg.body);
+                    console.log(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+                    console.log(data);
                 }catch (error) {
                     console.error("❌ Lỗi Parse JSON:", error);
                 }

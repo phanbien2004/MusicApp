@@ -64,3 +64,25 @@ export const getAllTagsAPI = async (): Promise<TagDTO[]> => {
     // console.log('[trackService] getAllTags response:', res.data);
     return res.data as TagDTO[];
 };
+
+// ── Top Tracks ─────────────────────────────────────────────────────────────────
+
+export interface TopTrackContributor {
+    id: number;
+    name: string;
+    role: 'OWNER' | 'PRODUCER' | 'FEATURED';
+}
+
+export interface TopTrack {
+    id: number;
+    title: string;
+    thumbnailUrl: string;
+    trackUrl: string;
+    duration: number;
+    contributors: TopTrackContributor[];
+}
+
+export const getTopTracksAPI = async (): Promise<TopTrack[]> => {
+    const res = await apiClient.get('/api/v1/statistic/getTopTracks');
+    return res.data as TopTrack[];
+};

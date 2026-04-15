@@ -596,7 +596,6 @@ export default function UploadTrackScreen() {
                     />
 
                     {/* Chỉ hiển thị contributors và tags nếu không phải là luồng thêm vào album */}
-                    {!isAlbumFlow && (
                         <>
                             <View style={styles.sectionHeaderRow}>
                                 <Text style={styles.reviewLabel}>Contributors</Text>
@@ -633,7 +632,6 @@ export default function UploadTrackScreen() {
                                 ))}
                             </View>
                         </>
-                    )}
 
                     <TouchableOpacity
                         style={[styles.submitBtn, isFinalizing && { opacity: 0.6 }]}

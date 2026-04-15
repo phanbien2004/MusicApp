@@ -1,5 +1,5 @@
-import { Colors } from '@/constants/theme';
 import { USER_ID_STORAGE_KEY } from '@/constants/storageKeys';
+import { Colors } from '@/constants/theme';
 import { CurrentTrack, useCurrentTrack } from '@/context/currentTrack-context';
 import { usePlayer } from '@/context/player-context';
 import { addTrackToPlayListAPI, createPlayListAPI, getMemberPlayListAPI, getPlayListDetailAPI } from '@/services/listService';
@@ -329,7 +329,7 @@ function CurrentTrackUI({ context }: { context: NonNullCurrentTrackContext }) {
             </View>
 
             {/* INFO & CONTROLS */}
-            <View style={[styles.bottomSection, { paddingBottom: insets.bottom + 20 }]}>
+          <View style={[styles.bottomSection, { paddingBottom: insets.bottom + 20 }]}>
                 <View style={styles.songInfoContainer}>
                     <View style={styles.songTitleRow}>
                         <Text style={styles.songTitle} numberOfLines={1}>{currentTrack.title}</Text>
@@ -390,7 +390,7 @@ function CurrentTrackUI({ context }: { context: NonNullCurrentTrackContext }) {
                 </View>
 
                 <View style={styles.controls}>
-                    {/* <TouchableOpacity onPress={toggleShuffle}><Ionicons name="shuffle" size={26} color={isShuffle ? Colors.teal : Colors.gray} /></TouchableOpacity> */}
+                    <TouchableOpacity onPress={() => setIsShuffle(!isShuffle)}><Ionicons name="shuffle" size={26} color={isShuffle ? Colors.teal : Colors.gray} /></TouchableOpacity>
                     <TouchableOpacity disabled={!hasPreviousTrack} onPress={playPreviousInQueue} style={!hasPreviousTrack ? styles.disabledControl : undefined}>
                         <Ionicons name="play-skip-back" size={36} color={hasPreviousTrack ? Colors.white : Colors.gray} />
                     </TouchableOpacity>
@@ -404,14 +404,7 @@ function CurrentTrackUI({ context }: { context: NonNullCurrentTrackContext }) {
                     >
                         <Ionicons name="play-skip-forward" size={36} color={hasNextTrack ? Colors.white : Colors.gray} />
                     </TouchableOpacity>
-                    {/* <TouchableOpacity onPress={toggleRepeatMode} style={{ position: 'relative' }}>
-                        <Ionicons name="repeat" size={26} color={repeatMode !== 'NONE' ? Colors.teal : Colors.gray} />
-                        {repeatMode === 'ONE' && (
-                            <View style={{ position: 'absolute', top: -4, right: -4, backgroundColor: Colors.teal, borderRadius: 8, width: 14, height: 14, alignItems: 'center', justifyContent: 'center' }}>
-                                <Text style={{ color: Colors.background, fontSize: 10, fontWeight: 'bold' }}>1</Text>
-                            </View>
-                        )}
-                    </TouchableOpacity> */}
+                    <TouchableOpacity onPress={() => setIsRepeat(!isRepeat)}><Ionicons name="repeat" size={26} color={isRepeat ? Colors.teal : Colors.gray} /></TouchableOpacity>
                 </View>
 
 
