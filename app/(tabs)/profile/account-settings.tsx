@@ -14,24 +14,43 @@ import { useAuth } from '@/context/auth-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { usePlayer } from '@/context/player-context';
 import { getProfileAPI, ProfileResponse } from '@/services/profileService';
 import PremiumUpgradeModal from '@/components/PremiumUpgradeModal';
-import { getMySubscriptionAPI } from '@/services/paymentService';
+import { getMySubscriptionAPI, MySubscriptionResponse } from '@/services/paymentService';
+
+function formatSubscriptionDate(date?: string | null) {
+    if (!date) return 'N/A';
+    const [year, month, day] = date.split('-');
+    if (!year || !month || !day) return date;
+    return `${day}/${month}/${year}`;
+}
 
 export default function AccountSettingsScreen() {
     const router = useRouter();
     const { logout } = useAuth();
+    const { lastActiveTab } = usePlayer();
+    const handleBack = () => {
+        const tab = lastActiveTab || 'profile';
+        router.navigate(`/(tabs)/${tab}` as any);
+    };
     
     const [profileData, setProfileData] = useState<ProfileResponse | null>(null);
     const [showPremiumModal, setShowPremiumModal] = useState(false);
     const [isPremium, setIsPremium] = useState(false);
+    const [subscription, setSubscription] = useState<MySubscriptionResponse | null>(null);
 
     const fetchData = useCallback(async () => {
         try {
             const userId = await AsyncStorage.getItem('userId');
             if (userId) {
                 getProfileAPI(userId).then(res => setProfileData(res)).catch(console.log);
-                getMySubscriptionAPI().then(res => setIsPremium(res?.isActive || false)).catch(console.log);
+                getMySubscriptionAPI()
+                    .then(res => {
+                        setSubscription(res);
+                        setIsPremium(res?.isActive || false);
+                    })
+                    .catch(console.log);
             }
         } catch (error) {
             console.error("Error fetching data:", error);
@@ -53,8 +72,8 @@ export default function AccountSettingsScreen() {
                 {
                     text: 'Logout',
                     style: 'destructive',
-                    onPress: () => {
-                        logout();
+                    onPress: async () => {
+                        await logout();
                         router.replace('/login' as any);
                     },
                 },
@@ -67,7 +86,7 @@ export default function AccountSettingsScreen() {
             <StatusBar barStyle="light-content" backgroundColor="#000" />
             
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+                <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
                     <Ionicons name="chevron-back" size={20} color={Colors.white} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Account Settings</Text>
@@ -111,7 +130,9 @@ export default function AccountSettingsScreen() {
                                     {isPremium ? 'PREMIUM ACCOUNT' : 'FREE ACCOUNT'}
                                 </Text>
                                 <Text style={styles.subsDesc}>
-                                    {isPremium ? 'Full access to all features.' : 'Limited free plan'}
+                                    {isPremium
+                                        ? `${subscription?.planName ?? 'Premium'} • Expires ${formatSubscriptionDate(subscription?.endDate)}`
+                                        : 'Limited free plan'}
                                 </Text>
                             </View>
                         </View>

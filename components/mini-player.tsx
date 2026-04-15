@@ -1,5 +1,7 @@
 import { Colors } from '@/constants/theme';
 import { useCurrentTrack } from '@/context/currentTrack-context';
+import { useJam } from '@/context/jam-context';
+import { usePlayer } from '@/context/player-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAudioPlayerStatus } from 'expo-audio';
 import { useRouter } from 'expo-router';
@@ -15,6 +17,8 @@ export default function MiniPlayer() {
 function MiniPlayerUI({ currentTrack, player }: { currentTrack: any, player: any }) {
     const router = useRouter();
     const status = useAudioPlayerStatus(player);
+    const { activeSession } = useJam();
+    const { setLastActiveTab } = usePlayer();
     const duration = status.duration > 0 ? status.duration : 1;
     const progressPercent = (status.currentTime / duration) * 100;
 
@@ -27,6 +31,15 @@ function MiniPlayerUI({ currentTrack, player }: { currentTrack: any, player: any
         }
     };
 
+    const handlePress = () => {
+        if (activeSession?.sessionId) {
+            setLastActiveTab('jam');
+            router.navigate(`/(tabs)/jam/jamroom?jamId=${activeSession.sessionId}` as any);
+        } else {
+            router.navigate('/(tabs)/player/currentTrack' as any);
+        }
+    };
+
     return (
         <View style={styles.wrapper}>
             <View style={styles.progressBarContainer}>
@@ -36,7 +49,7 @@ function MiniPlayerUI({ currentTrack, player }: { currentTrack: any, player: any
             <TouchableOpacity
                 style={styles.container}
                 activeOpacity={0.9}
-                onPress={() => router.push('/(tabs)/player/currentTrack' as any)}
+                onPress={handlePress}
             >
                 <View style={styles.thumbnail}>
                     {currentTrack.thumbnailUrl ? (

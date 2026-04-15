@@ -8,6 +8,29 @@ export interface CreateArtistPayload {
     bio: string;
 }
 
+export interface AlbumsContentDTO {
+    id: number;
+    title: string;
+    thumbnailUrl: string;
+    releaseYear: number;
+}
+
+export interface AlbumsDTO {
+    content: AlbumsContentDTO[];
+    currentPage: number,
+    pageSize: number,
+    totalElements: number,
+    totalPages: number
+}
+
+export interface popularTrack {
+    id: 0,
+    title: string,
+    trackUrl: string,
+    thumbnailUrl: string,
+    duration: 0,
+}
+
 export interface ArtistProfileData {
     id: number;
     stageName: string;

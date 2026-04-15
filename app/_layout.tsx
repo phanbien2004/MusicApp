@@ -1,9 +1,14 @@
 import { AuthProvider, useAuth } from '@/context/auth-context';
-import { Stack, useRouter, useSegments, useRootNavigationState } from 'expo-router';
+import { Stack, useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import 'fast-text-encoding';
+import { jwtDecode } from 'jwt-decode';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
-import { jwtDecode } from 'jwt-decode';
+if (typeof global.TextEncoder === 'undefined') {
+    global.TextEncoder = require('fast-text-encoding').TextEncoder;
+    global.TextDecoder = require('fast-text-encoding').TextDecoder;
+}
 
 
 // Guard: redirect dựa theo trạng thái auth

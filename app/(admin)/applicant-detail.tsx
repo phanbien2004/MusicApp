@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/theme';
 import {
-    AdminArtistProfileDTO,
+    ArtistProfilelDTO,
     approveArtistProfileAPI,
     getArtistProfileByIdAPI,
     rejectArtistProfileAPI
@@ -17,7 +17,7 @@ export default function ApplicantDetail() {
     const { id } = useLocalSearchParams<{ id: string }>();
 
     const [isSubmitting, setIsSubmitting] = React.useState(false);
-    const [profile, setProfile] = React.useState<AdminArtistProfileDTO | null>(null);
+    const [profile, setProfile] = React.useState<ArtistProfilelDTO | null>(null);
     const [toastMessage, setToastMessage] = React.useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
     React.useEffect(() => {
@@ -31,8 +31,8 @@ export default function ApplicantDetail() {
             const data = await getArtistProfileByIdAPI(id);
             setProfile(data);
         } catch (error) {
-            console.error("Lỗi fetch chi tiết artist:", error);
-            showToast("Không thể lấy thông tin đăng ký", "error");
+            console.error("Error fetching artist details:", error);
+            showToast("Cannot fetch registration details", "error");
         }
     }
 
@@ -49,10 +49,10 @@ export default function ApplicantDetail() {
         setIsSubmitting(true);
         try {
             await approveArtistProfileAPI(id);
-            showToast("Đã duyệt nghệ sĩ thành công!", "success", true);
+            showToast("Artist approved successfully!", "success", true);
         } catch (error) {
-            console.error("Lỗi approve:", error);
-            showToast("Duyệt thất bại", "error");
+            console.error("Approve error:", error);
+            showToast("Approve failed", "error");
             setIsSubmitting(false);
         }
     }
@@ -62,10 +62,10 @@ export default function ApplicantDetail() {
         setIsSubmitting(true);
         try {
             await rejectArtistProfileAPI(id);
-            showToast("Đã từ chối đơn đăng ký!", "success", true);
+            showToast("Application rejected successfully!", "success", true);
         } catch (error) {
-            console.error("Lỗi reject:", error);
-            showToast("Từ chối thất bại", "error");
+            console.error("Reject error:", error);
+            showToast("Reject failed", "error");
             setIsSubmitting(false);
         }
     }

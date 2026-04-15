@@ -1,11 +1,14 @@
-import apiClient from '@/api/apiClient';
 import { Colors } from '@/constants/theme';
+import { approveTrackAPI, getAllPendingTrackAPI, rejectTrackAPI, TrackPendingDTO } from '@/services/admin/adminService';
+import { contributorDTO } from '@/services/trackService';
 import { Ionicons } from '@expo/vector-icons';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    Dimensions,
     FlatList,
     Image,
     StatusBar,
@@ -17,154 +20,170 @@ import {
 import Toast from 'react-native-root-toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-interface TrackReviewItem {
-    trackId: number;
-    title: string;
-    duration: number;
-    trackUrl: string;
-    thumbnailUrl: string;
-    tags: { id: number; name: string }[];
-}
+const { width } = Dimensions.get('window');
 
 export default function TrackReview() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     
-    // --- AUDIO PLAYER LOGIC ---
+    // --- AUDIO LOGIC ---
     const player = useAudioPlayer();
     const status = useAudioPlayerStatus(player);
 
-    // --- DATA STATES ---
-    const [tracks, setTracks] = useState<TrackReviewItem[]>([]);
+    // --- STATES ---
+    const [tracks, setTracks] = useState<TrackPendingDTO[]>([]);
     const [loading, setLoading] = useState(false);
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalItems, setTotalItems] = useState(0);
     const [activeTrackId, setActiveTrackId] = useState<number | null>(null);
 
-    const fetchTracks = async (pageIndex = 1) => {
+    // --- FETCH DATA ---
+    const fetchTracks = useCallback(async (currentPage: number) => {
+        setLoading(true);
         try {
-            setLoading(true);
-            const res = await apiClient.get('/api/v1/admin/getAllPendingTrack', { 
-                params: { index: pageIndex, size: 6 } 
-            });
-            if (res.data?.content) {
-                setTracks(res.data.content);
-                setTotalPages(res.data.totalPages || 1);
-                setTotalItems(res.data.totalElements || 0);
+            const res: any = await getAllPendingTrackAPI(currentPage, 6);
+            
+            // Handling Pageable structure from Spring Boot
+            if (res && res.content) {
+                setTracks(res.content);
+                setTotalPages(res.totalPages || 1);
+                setTotalItems(res.totalElements || 0);
+            } else {
+                setTracks(res || []);
             }
         } catch (error) {
-            console.error("Failed to load tracks:", error);
-            Toast.show('Failed to load pending tracks.');
+            console.error("Fetch Error:", error);
+            Toast.show('Failed to connect to the server');
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
-    useEffect(() => { fetchTracks(page); }, [page]);
+    useEffect(() => { fetchTracks(page); }, [page, fetchTracks]);
 
-    // --- PLAYBACK HANDLER ---
-    const handleTogglePlay = (item: TrackReviewItem) => {
+    // --- ACTIONS ---
+    const handleTogglePlay = (item: TrackPendingDTO) => {
         if (activeTrackId === item.trackId) {
-            if (status.playing) player.pause();
-            else player.play();
+            status.playing ? player.pause() : player.play();
         } else {
             setActiveTrackId(item.trackId);
             player.replace(item.trackUrl);
-            player.play(); // Kích hoạt phát nhạc ngay lập tức
+            player.play();
         }
     };
 
-    // --- ACTION HANDLERS ---
     const handleApprove = async (id: number) => {
         try {
-            await apiClient.put(`/api/v1/admin/approveTrack/${id}`);
-            Toast.show('Approved!');
-            fetchTracks(page);
+            const res = await approveTrackAPI(id);
+            if(res) {
+                player.pause();
+                setTracks(prev => prev.filter(t => t.trackId !== id));
+                Toast.show('🎉 Track approved successfully!');
+            }
         } catch (error) {
-            Toast.show('Approval failed.');
+            Toast.show('Error approving track');
         }
     };
 
-    const handleReject = (id: number) => {
-        Toast.show('Track rejected.');
-        // Implement API reject nếu có
+    const handleReject = async (id: number) => {
+        try {
+            const res = await rejectTrackAPI(id);
+            if(res) {
+                player.pause();
+                setTracks(prev => prev.filter(t => t.trackId !== id));
+                Toast.show('Track rejected.');
+            }
+        } catch (error) {
+            Toast.show('Error rejecting track');
+        }
     };
 
-    const formatDuration = (sec: number) => {
+    const formatTime = (sec: number) => {
         const m = Math.floor(sec / 60);
         const s = Math.floor(sec % 60);
         return `${m}:${s < 10 ? '0' : ''}${s}`;
     };
 
-    // --- RENDER ITEM ---
-    const renderTrackItem = ({ item }: { item: TrackReviewItem }) => {
-        const isCurrentActive = activeTrackId === item.trackId;
-        const isActuallyPlaying = isCurrentActive && status.playing;
-        const progress = isCurrentActive ? (status.currentTime / (status.duration || 1)) * 100 : 0;
+    // --- RENDER HELPERS ---
+    const renderArtistSubtitle = (contributors: contributorDTO[]) => {
+        const owner = contributors.find(c => c.role === "OWNER")?.name || "Unknown";
+        const featured = contributors.filter(c => c.role === "FEATURED").map(c => c.name);
+        const producers = contributors.filter(c => c.role === "PRODUCER").map(c => c.name);
 
         return (
-            <View style={[styles.card, isCurrentActive && styles.cardActive]}>
-                <View style={styles.cardHeader}>
-                    {/* Thumbnail + Play Overlay */}
-                    <TouchableOpacity 
-                        style={styles.thumbnailWrapper} 
-                        onPress={() => handleTogglePlay(item)}
-                        activeOpacity={0.8}
-                    >
-                        <Image 
-                            source={{ uri: item.thumbnailUrl || 'https://via.placeholder.com/150' }} 
-                            style={styles.thumbnail} 
-                        />
-                        <View style={styles.playOverlay}>
-                            <Ionicons 
-                                name={isActuallyPlaying ? "pause" : "play"} 
-                                size={22} 
-                                color="#FFF" 
-                            />
+            <Text style={styles.artistSubtitle} numberOfLines={1}>
+                <Text style={styles.ownerText}>{owner}</Text>
+                {featured.length > 0 && (
+                    <>
+                        <Text style={styles.featLabel}> feat. </Text>
+                        <Text style={styles.featuredName}>{featured.join(', ')}</Text>
+                    </>
+                )}
+                {producers.length > 0 && (
+                    <>
+                        <Text style={styles.prodLabel}> (prod. </Text>
+                        <Text style={styles.prodName}>{producers.join(', ')}</Text>
+                        <Text style={styles.prodLabel}>)</Text>
+                    </>
+                )}
+            </Text>
+        );
+    };
+
+    const renderTrackItem = ({ item }: { item: TrackPendingDTO }) => {
+        const isActive = activeTrackId === item.trackId;
+        const isPlaying = isActive && status.playing;
+        const progress = isActive ? (status.currentTime / (status.duration || 1)) * 100 : 0;
+
+        return (
+            <LinearGradient
+                colors={isActive ? ['#1A1A1A', '#0F2D24'] : ['#111', '#111']}
+                style={[styles.card, isActive && styles.cardActive]}
+            >
+                <View style={styles.cardMain}>
+                    <TouchableOpacity style={styles.artContainer} onPress={() => handleTogglePlay(item)}>
+                        <Image source={{ uri: item.thumbnailUrl || 'https://via.placeholder.com/150' }} style={styles.artImage} />
+                        <View style={[styles.playCircle, isPlaying && styles.pauseCircle]}>
+                            <Ionicons name={isPlaying ? "pause" : "play"} size={20} color="#FFF" />
                         </View>
                     </TouchableOpacity>
 
-                    {/* Track Info */}
-                    <View style={styles.trackInfo}>
-                        <Text style={styles.trackTitle} numberOfLines={1}>{item.title}</Text>
-                        <Text style={styles.trackDuration}>Duration: {formatDuration(item.duration)}</Text>
+                    <View style={styles.infoContainer}>
+                        <Text style={styles.titleText} numberOfLines={1}>{item.title}</Text>
+                        {renderArtistSubtitle(item.contributors || [])}
+                        
+                        {isActive && (
+                            <View style={styles.visualizerRow}>
+                                {[1, 2, 3, 4, 5].map((i) => (
+                                    <View key={i} style={[styles.vizBar, { height: isPlaying ? 4 + Math.random() * 10 : 4 }]} />
+                                ))}
+                            </View>
+                        )}
                     </View>
 
-                    {/* Quick Actions */}
                     <View style={styles.actionColumn}>
-                        <TouchableOpacity style={styles.actionBtnReject} onPress={() => handleReject(item.trackId)}>
-                            <Ionicons name="close-outline" size={20} color="#FF5555" />
+                        <TouchableOpacity style={styles.btnApprove} onPress={() => handleApprove(item.trackId)}>
+                            <Ionicons name="checkmark" size={20} color="#FFF" />
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.actionBtnApprove} onPress={() => handleApprove(item.trackId)}>
-                            <Ionicons name="checkmark-outline" size={20} color={Colors.teal} />
+                        <TouchableOpacity style={styles.btnReject} onPress={() => handleReject(item.trackId)}>
+                            <Ionicons name="trash-outline" size={18} color="#666" />
                         </TouchableOpacity>
                     </View>
                 </View>
 
-                {/* Expanded Content (Tags & Progress) */}
-                {isCurrentActive && (
-                    <View style={styles.expandedArea}>
-                        <View style={styles.tagRow}>
-                            {item.tags?.map(tag => (
-                                <View key={tag.id} style={styles.tagBadge}>
-                                    <Text style={styles.tagText}>#{tag.name}</Text>
-                                </View>
-                            ))}
+                {isActive && (
+                    <View style={styles.cardFooter}>
+                        <View style={styles.progressBarFull}>
+                            <View style={[styles.progressFill, { width: `${progress}%` }]} />
                         </View>
-
-                        <View style={styles.progressSection}>
-                            <View style={styles.progressBarBg}>
-                                <View style={[styles.progressFill, { width: `${progress}%` }]} />
-                            </View>
-                            <View style={styles.timeLabelRow}>
-                                <Text style={styles.timeText}>{formatDuration(status.currentTime)}</Text>
-                                <Text style={styles.timeText}>{formatDuration(item.duration)}</Text>
-                            </View>
+                        <View style={styles.timeRow}>
+                            <Text style={styles.timeLabel}>{formatTime(status.currentTime)}</Text>
+                            <Text style={styles.timeLabel}>{formatTime(item.duration)}</Text>
                         </View>
                     </View>
                 )}
-            </View>
+            </LinearGradient>
         );
     };
 
@@ -174,47 +193,59 @@ export default function TrackReview() {
 
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                    <Ionicons name="chevron-back" size={24} color="#FFF" />
+                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                    <Ionicons name="arrow-back" size={24} color="#FFF" />
                 </TouchableOpacity>
-                <View>
-                    <Text style={styles.headerTitle}>TRACK REVIEW</Text>
-                    <Text style={styles.headerSubtitle}>{totalItems} PENDING REQUESTS</Text>
+                <View style={{ flex: 1 }}>
+                    <Text style={styles.headerTitle}>Review Lab</Text>
+                    <Text style={styles.headerCount}>{totalItems} pending requests</Text>
                 </View>
+                <TouchableOpacity onPress={() => fetchTracks(page)} style={styles.refreshBtn}>
+                    <Ionicons name="refresh" size={20} color={Colors.teal} />
+                </TouchableOpacity>
             </View>
 
-            {/* List */}
-            {loading ? (
-                <View style={styles.centered}><ActivityIndicator color={Colors.teal} size="large" /></View>
+            {/* Main Content */}
+            {loading && page === 1 ? (
+                <View style={styles.loaderWrap}><ActivityIndicator color={Colors.teal} size="large" /></View>
             ) : (
                 <FlatList
                     data={tracks}
                     keyExtractor={(item) => String(item.trackId)}
                     renderItem={renderTrackItem}
-                    contentContainerStyle={styles.listPadding}
+                    contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 100 }]}
                     showsVerticalScrollIndicator={false}
-                    ListEmptyComponent={<Text style={styles.emptyText}>All caught up!</Text>}
+                    ListEmptyComponent={
+                        <View style={styles.emptyWrap}>
+                            <Ionicons name="sparkles" size={40} color="#333" />
+                            <Text style={styles.emptyText}>All caught up! No pending tracks.</Text>
+                        </View>
+                    }
                 />
             )}
 
-            {/* Pagination */}
-            <View style={[styles.paginationRow, { paddingBottom: insets.bottom + 15 }]}>
+            {/* Pagination Dock */}
+            <View style={[styles.paginationDock, { bottom: insets.bottom + 20 }]}>
                 <TouchableOpacity 
-                    style={[styles.pageBtn, page <= 1 && styles.pageBtnDisabled]} 
-                    onPress={() => setPage(p => p - 1)} 
+                    style={[styles.dockBtn, page <= 1 && styles.dockBtnDisabled]} 
+                    onPress={() => setPage(p => p - 1)}
                     disabled={page <= 1}
                 >
-                    <Ionicons name="chevron-back" size={20} color={page <= 1 ? "#444" : "#FFF"} />
+                    <Ionicons name="chevron-back" size={22} color={page <= 1 ? "#444" : "#FFF"} />
                 </TouchableOpacity>
-                
-                <Text style={styles.pageIndicator}>{page} / {totalPages}</Text>
-                
+
+                <View style={styles.pageIndicator}>
+                    <Text style={styles.pageCurrent}>{page}</Text>
+                    <Text style={styles.pageDivider}>/</Text>
+                    <Text style={styles.pageTotal}>{totalPages}</Text>
+                </View>
+
                 <TouchableOpacity 
-                    style={[styles.pageBtn, page >= totalPages && styles.pageBtnDisabled]} 
-                    onPress={() => setPage(p => p + 1)} 
+                    style={[styles.dockBtn, page >= totalPages && styles.dockBtnDisabled]} 
+                    onPress={() => setPage(p => p + 1)}
                     disabled={page >= totalPages}
                 >
-                    <Ionicons name="chevron-forward" size={20} color={page >= totalPages ? "#444" : "#FFF"} />
+                    <Ionicons name="chevron-forward" size={22} color={page >= totalPages ? "#444" : "#FFF"} />
                 </TouchableOpacity>
             </View>
         </View>
@@ -223,43 +254,68 @@ export default function TrackReview() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#000' },
-    centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    header: { flexDirection: 'row', alignItems: 'center', padding: 20, gap: 15 },
-    backButton: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#111', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#222' },
-    headerTitle: { color: '#FFF', fontSize: 20, fontWeight: '900', letterSpacing: 1 },
-    headerSubtitle: { color: Colors.teal, fontSize: 11, fontWeight: '700', marginTop: 2 },
+    header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 15, gap: 15 },
+    backBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+    headerTitle: { fontSize: 24, fontWeight: '900', color: '#FFF', letterSpacing: -0.5 },
+    headerCount: { fontSize: 11, color: Colors.teal, fontWeight: '700', textTransform: 'uppercase', marginTop: 2 },
+    refreshBtn: { width: 40, height: 40, backgroundColor: '#111', borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#222' },
     
-    listPadding: { paddingHorizontal: 20, paddingBottom: 100 },
-    card: { backgroundColor: '#111', borderRadius: 24, padding: 12, marginBottom: 15, borderWidth: 1, borderColor: '#1A1A1A' },
-    cardActive: { borderColor: Colors.teal, backgroundColor: '#0A1A16' },
-    cardHeader: { flexDirection: 'row', alignItems: 'center' },
+    listContent: { paddingHorizontal: 20, paddingTop: 10 },
+    card: { borderRadius: 28, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#1A1A1A', overflow: 'hidden' },
+    cardActive: { borderColor: Colors.teal + '40' },
+    cardMain: { flexDirection: 'row', alignItems: 'center' },
     
-    thumbnailWrapper: { width: 64, height: 64, borderRadius: 16, overflow: 'hidden', backgroundColor: '#222' },
-    thumbnail: { width: '100%', height: '100%' },
-    playOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
+    artContainer: { width: 70, height: 70, borderRadius: 20, overflow: 'hidden' },
+    artImage: { width: '100%', height: '100%' },
+    playCircle: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' },
+    pauseCircle: { backgroundColor: 'rgba(51, 210, 148, 0.2)' },
     
-    trackInfo: { flex: 1, marginLeft: 15, justifyContent: 'center' },
-    trackTitle: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
-    trackDuration: { color: '#666', fontSize: 12, marginTop: 4 },
+    infoContainer: { flex: 1, marginLeft: 16, justifyContent: 'center' },
+    titleText: { color: '#FFF', fontSize: 17, fontWeight: '800', marginBottom: 2 },
     
-    actionColumn: { gap: 8 },
-    actionBtnApprove: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#1A2A22', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#2E4D3E' },
-    actionBtnReject: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#2A1A1A', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#4D2E2E' },
+    artistSubtitle: { fontSize: 13, marginBottom: 6 },
+    ownerText: { color: '#FFF', fontWeight: '700' },
+    featLabel: { color: Colors.teal, fontWeight: '900', fontSize: 11, fontStyle: 'italic' },
+    featuredName: { color: '#BBB', fontWeight: '500' },
+    prodLabel: { color: '#666', fontSize: 11 },
+    prodName: { color: '#888', fontWeight: '500' },
 
-    expandedArea: { marginTop: 15, paddingHorizontal: 5 },
-    tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 15 },
-    tagBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#333' },
-    tagText: { color: Colors.teal, fontSize: 10, fontWeight: '800' },
-    
-    progressSection: { marginTop: 5 },
-    progressBarBg: { height: 4, backgroundColor: '#222', borderRadius: 2, overflow: 'hidden' },
+    visualizerRow: { flexDirection: 'row', gap: 3, alignItems: 'flex-end', height: 12 },
+    vizBar: { width: 3, backgroundColor: Colors.teal, borderRadius: 1.5 },
+
+    actionColumn: { gap: 10, paddingLeft: 10 },
+    btnApprove: { width: 42, height: 42, borderRadius: 16, backgroundColor: Colors.teal, alignItems: 'center', justifyContent: 'center' },
+    btnReject: { width: 42, height: 42, borderRadius: 16, backgroundColor: '#1A1A1A', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#333' },
+
+    cardFooter: { marginTop: 15, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)' },
+    progressBarFull: { height: 3, backgroundColor: '#222', borderRadius: 1.5 },
     progressFill: { height: '100%', backgroundColor: Colors.teal },
-    timeLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-    timeText: { color: '#555', fontSize: 10, fontWeight: 'bold' },
+    timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
+    timeLabel: { fontSize: 10, color: '#555', fontWeight: 'bold' },
 
-    paginationRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 25, position: 'absolute', bottom: 0, width: '100%', backgroundColor: 'rgba(0,0,0,0.9)', paddingTop: 10 },
-    pageBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#111', alignItems: 'center', justifyContent: 'center' },
-    pageBtnDisabled: { opacity: 0.3 },
-    pageIndicator: { color: '#FFF', fontSize: 14, fontWeight: 'bold', minWidth: 50, textAlign: 'center' },
-    emptyText: { color: '#444', textAlign: 'center', marginTop: 100, fontSize: 16, fontWeight: '600' }
+    paginationDock: {
+        position: 'absolute',
+        alignSelf: 'center',
+        flexDirection: 'row',
+        backgroundColor: '#161616',
+        borderRadius: 35,
+        padding: 8,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#222',
+        shadowColor: '#000',
+        shadowOpacity: 0.5,
+        shadowRadius: 10,
+        elevation: 10
+    },
+    dockBtn: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#222', alignItems: 'center', justifyContent: 'center' },
+    dockBtnDisabled: { opacity: 0.2 },
+    pageIndicator: { flexDirection: 'row', paddingHorizontal: 20, alignItems: 'center', gap: 5 },
+    pageCurrent: { color: Colors.teal, fontSize: 18, fontWeight: '900' },
+    pageDivider: { color: '#333', fontSize: 16 },
+    pageTotal: { color: '#666', fontSize: 14, fontWeight: '700' },
+
+    loaderWrap: { flex: 1, justifyContent: 'center' },
+    emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 100, gap: 10 },
+    emptyText: { color: '#444', fontSize: 14, fontWeight: '800', textAlign: 'center' }
 });
