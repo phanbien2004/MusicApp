@@ -14,7 +14,7 @@ import { NotificationProvider } from "@/context/notification-context";
 
 const MAIN_TABS = ["home", "search", "jam", "profile"];
 
-// Danh sách các màn hình cần ẩn MiniPlayer và giữ sáng Tab Bar cũ
+// Danh sách các màn hình cần ẩn MiniPlayer
 const HIDDEN_SCREENS = [
   "player/currentTrack",
   "notifications",
@@ -27,16 +27,27 @@ const HIDDEN_SCREENS = [
   "profile/my-subscription",
   "profile/account-settings",
   "profile/artist-portal",
+  "profile/artist-profile",
   // 'profile/list',
   "profile/upload-track",
 ];
+
+// Map route name → main tab cần sáng
+// Dùng route name (từ navigation state) thay vì pathname vì đây là nguồn đáng tin cậy nhất
+function resolveTabForRoute(routeName: string, lastActiveTab: string): string {
+  if (MAIN_TABS.includes(routeName)) return routeName;
+  if (routeName.startsWith("jam/"))     return "jam";
+  if (routeName.startsWith("profile/")) return "profile";
+  if (routeName.startsWith("album/"))   return "home";
+  // notifications, player/currentTrack → giữ tab cuối người dùng bấm
+  return lastActiveTab;
+}
 
 function TabLayoutInner() {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const isHiddenScreen = HIDDEN_SCREENS.some((s) => pathname.includes(s));
 
-  // Track last active main tab to keep it highlighted when on sub-screens
   const { lastActiveTab, setLastActiveTab } = usePlayer();
 
   return (
@@ -47,34 +58,40 @@ function TabLayoutInner() {
         initialRouteName="home"
         screenListeners={{
           state: (e) => {
-            // Use route state directly — more reliable than parsing target string
             const state = (e.data as any)?.state;
             if (!state) return;
             const activeRoute = state.routes?.[state.index];
-            if (activeRoute && MAIN_TABS.includes(activeRoute.name)) {
-              setLastActiveTab(activeRoute.name);
+            if (!activeRoute) return;
+            const routeName: string = activeRoute.name;
+            // Cập nhật lastActiveTab cho cả main tabs và sub-screens
+            // để luôn biết tab nào đang được dùng
+            if (MAIN_TABS.includes(routeName)) {
+              setLastActiveTab(routeName);
+            } else if (routeName.startsWith("jam/")) {
+              setLastActiveTab("jam");
+            } else if (routeName.startsWith("profile/")) {
+              setLastActiveTab("profile");
+            } else if (routeName.startsWith("album/")) {
+              setLastActiveTab("home");
             }
+            // notifications và player/currentTrack: không cập nhật → giữ tab cũ
           },
         }}
         tabBar={(props) => {
-          // When on a sub-screen, keep the last active tab highlighted
-          let activeIndex = props.state.index;
-          const activeRouteName = props.state.routes[activeIndex]?.name;
-          
-          if (!MAIN_TABS.includes(activeRouteName) && lastActiveTab) {
-            const idx = props.state.routes.findIndex(
-              (r) => r.name === lastActiveTab,
-            );
-            activeIndex = idx >= 0 ? idx : props.state.index;
-          }
+          const activeIndex = props.state.index;
+          const activeRouteName = props.state.routes[activeIndex]?.name ?? "";
 
-          const customState = { ...props.state, index: activeIndex };
+          // Tính tab nào cần sáng dựa vào route name (đồng bộ, đáng tin cậy)
+          const targetTabName = resolveTabForRoute(activeRouteName, lastActiveTab);
+          const targetIndex = props.state.routes.findIndex(
+            (r) => r.name === targetTabName
+          );
+          const customIndex = targetIndex >= 0 ? targetIndex : activeIndex;
+          const customState = { ...props.state, index: customIndex };
 
           return (
             <View style={styles.tabBarContainer}>
-              {/* MiniPlayer nằm TRÊN BottomTabBar trong cùng một View cha */}
               {!isHiddenScreen && <MiniPlayer />}
-
               <BottomTabBar {...props} state={customState} />
             </View>
           );
@@ -87,12 +104,10 @@ function TabLayoutInner() {
             backgroundColor: Colors.tabBar,
             borderTopColor: Colors.border,
             borderTopWidth: 1,
-            // Chiều cao tự động giãn theo thiết bị (né Notch dưới)
             height: 60 + insets.bottom,
             paddingBottom: insets.bottom,
             paddingTop: 8,
             elevation: 0,
-            // QUAN TRỌNG: Không dùng absolute để MiniPlayer không bị đè
             position: "relative",
           },
           tabBarLabelStyle: {
@@ -141,7 +156,7 @@ function TabLayoutInner() {
           }}
         />
 
-        {/* MÀN HÌNH ẨN (Dùng href: null) */}
+        {/* MÀN HÌNH ẨN */}
         <Tabs.Screen name="player/currentTrack" options={{ href: null }} />
         <Tabs.Screen name="notifications" options={{ href: null }} />
         <Tabs.Screen name="jam/setupjam" options={{ href: null }} />
@@ -158,6 +173,7 @@ function TabLayoutInner() {
         <Tabs.Screen name="profile/account-settings" options={{ href: null }} />
         <Tabs.Screen name="profile/upload-track" options={{ href: null }} />
         <Tabs.Screen name="profile/artist-portal" options={{ href: null }} />
+        <Tabs.Screen name="profile/artist-profile" options={{ href: null }} />
         <Tabs.Screen name="profile/other-profile" options={{ href: null }} />
         <Tabs.Screen name="album/album" options={{ href: null }} />
         <Tabs.Screen name="profile/upload-album" options={{ href: null }} />

@@ -1,7 +1,9 @@
 import { IMAGE } from "@/constants/image";
 import { Colors } from "@/constants/theme";
 import { useCurrentTrack } from "@/context/currentTrack-context";
+import { usePlayer } from "@/context/player-context";
 import { AlbumDetail, getAlbumDetailAPI } from "@/services/albumService";
+import { TrackContentType } from "@/services/searchService";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAudioPlayerStatus } from "expo-audio";
@@ -19,39 +21,84 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { usePlayer } from "@/context/player-context";
 
 const { width } = Dimensions.get("window");
+
+const getTrackArtistLabel = (track?: TrackContentType | null) => {
+  const contributorNames =
+    track?.contributors?.map((contributor) => contributor.name).filter(Boolean) ||
+    [];
+
+  return contributorNames.length > 0
+    ? contributorNames.join(", ")
+    : "Unknown Artist";
+};
 
 export default function AlbumDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams();
+  const params = useLocalSearchParams<{
+    id?: string;
+    title?: string;
+    thumbnailUrl?: string;
+    releaseYear?: string;
+    artistName?: string;
+  }>();
+  const albumId = Number(params.id);
 
   // --- AUDIO CONTEXT & STATUS ---
   const { currentTrack, setCurrentTrack, player } = useCurrentTrack()!;
   const status = useAudioPlayerStatus(player);
+  const { lastActiveTab } = usePlayer();
 
   // --- DATA STATES ---
-  const [detail, setDetail] = useState<AlbumDetail | null>(null);
+  const [detail, setDetail] = useState<AlbumDetail | null>(() => {
+    if (!albumId || !Number.isFinite(albumId)) {
+      return null;
+    }
+
+    return {
+      id: albumId,
+      title: params.title || "",
+      thumbnailUrl: params.thumbnailUrl || "",
+      releaseYear: params.releaseYear ? Number(params.releaseYear) : undefined,
+      artistName: params.artistName || "",
+      tracks: [],
+    };
+  });
   const [loading, setLoading] = useState(true);
   const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null);
 
   const loadDetail = useCallback(async () => {
-    if (!id) return;
+    if (!albumId || !Number.isFinite(albumId)) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const storedAlbumId = await AsyncStorage.getItem("currentAlbumId");
       setActivePlaylistId(storedAlbumId);
 
-      const res = await getAlbumDetailAPI(Number(id));
-      setDetail(res);
+      const tracks = await getAlbumDetailAPI(albumId);
+      setDetail((prev) => ({
+        id: prev?.id || albumId,
+        title: prev?.title || params.title || "",
+        thumbnailUrl:
+          prev?.thumbnailUrl ||
+          params.thumbnailUrl ||
+          tracks[0]?.thumbnailUrl ||
+          "",
+        releaseYear: prev?.releaseYear,
+        artistName:
+          prev?.artistName || params.artistName || getTrackArtistLabel(tracks[0]),
+        tracks,
+      }));
     } catch (error) {
       console.error("Lỗi tải album:", error);
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [albumId, params.artistName, params.thumbnailUrl, params.title]);
 
   useFocusEffect(
     useCallback(() => {
@@ -73,21 +120,29 @@ export default function AlbumDetailScreen() {
       };
       await AsyncStorage.setItem("currentAlbumId", detail.id.toString());
       setActivePlaylistId(detail.id.toString());
-      setCurrentTrack(firstTrack, false);
-      player.play();
+      await setCurrentTrack(firstTrack, false, {
+        source: "album",
+        albumId: detail.id,
+      });
     } else {
-      status.playing ? player.pause() : player.play();
+      if (status.playing) {
+        player.pause();
+      } else {
+        player.play();
+      }
     }
   };
 
   const handleTrackSelect = async (item: any) => {
     await AsyncStorage.setItem("currentAlbumId", detail!.id.toString());
     setActivePlaylistId(detail!.id.toString());
-    setCurrentTrack({ ...item, trackUrl: (item as any).trackUrl }, false);
-    player.play();
+    await setCurrentTrack({ ...item, trackUrl: (item as any).trackUrl }, false, {
+      source: "album",
+      albumId: detail!.id,
+    });
   };
 
-  if (loading)
+  if (loading && !detail)
     return (
       <View style={styles.centered}>
         <ActivityIndicator color={Colors.teal} size="large" />
@@ -95,7 +150,6 @@ export default function AlbumDetailScreen() {
     );
   if (!detail) return null;
 
-  const { lastActiveTab } = usePlayer();
   const handleBack = () => {
     const tab = lastActiveTab || "search";
     router.navigate(`/(tabs)/${tab}` as any);
@@ -145,7 +199,7 @@ export default function AlbumDetailScreen() {
                   {detail.title}
                 </Text>
                 <Text style={styles.artistLabel}>
-                  {detail.artist?.name || "Unknown Artist"}
+                  {detail.artistName || "Unknown Artist"}
                 </Text>
               </View>
               <TouchableOpacity style={styles.addBtn}>
@@ -209,9 +263,7 @@ export default function AlbumDetailScreen() {
                   {item.title}
                 </Text>
                 <Text style={styles.trackArtist}>
-                  {(item as any).contributors?.[0]?.name ||
-                    detail.artist?.name ||
-                    "Unknown"}
+                  {getTrackArtistLabel(item) || detail.artistName || "Unknown"}
                 </Text>
               </View>
 

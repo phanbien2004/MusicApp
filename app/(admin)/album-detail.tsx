@@ -63,6 +63,14 @@ export default function AlbumDetailReview() {
     const [submitting, setSubmitting] = useState(false);
     const [activeTrackId, setActiveTrackId] = useState<number | null>(null);
 
+    const pausePreviewSafely = useCallback(() => {
+        try {
+            player.pause();
+        } catch {
+            // `useAudioPlayer` auto-releases on unmount, so pause can throw during teardown.
+        }
+    }, [player]);
+
     const fetchAlbumTracks = useCallback(async () => {
         if (!albumId || !Number.isFinite(albumId)) {
             setLoading(false);
@@ -85,12 +93,6 @@ export default function AlbumDetailReview() {
         fetchAlbumTracks();
     }, [fetchAlbumTracks]);
 
-    useEffect(() => {
-        return () => {
-            player.pause();
-        };
-    }, [player]);
-
     const handleToggleTrack = (track: AlbumTrackDTO) => {
         if (activeTrackId === track.id) {
             if (status.playing) {
@@ -112,7 +114,7 @@ export default function AlbumDetailReview() {
         setSubmitting(true);
         try {
             await approveAlbumAPI(albumId);
-            player.pause();
+            pausePreviewSafely();
             Toast.show('Album approved successfully.');
             router.back();
         } catch (error) {
@@ -128,7 +130,7 @@ export default function AlbumDetailReview() {
         setSubmitting(true);
         try {
             await rejectAlbumAPI(albumId);
-            player.pause();
+            pausePreviewSafely();
             Toast.show('Album rejected.');
             router.back();
         } catch (error) {
@@ -173,7 +175,13 @@ export default function AlbumDetailReview() {
             <StatusBar barStyle="light-content" />
 
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+                <TouchableOpacity
+                    style={styles.backBtn}
+                    onPress={() => {
+                        pausePreviewSafely();
+                        router.back();
+                    }}
+                >
                     <Ionicons name="chevron-back" size={24} color="#FFF" />
                 </TouchableOpacity>
                 <View style={styles.headerTextWrap}>

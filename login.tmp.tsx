@@ -17,7 +17,7 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View
+    View,
 } from 'react-native';
 
 export default function LoginScreen() {
@@ -42,21 +42,17 @@ export default function LoginScreen() {
             });
             console.log('[Login response]', res);
 
-            // Kiểm tra response
-            if (res.message === "Account not found!") {
-                setError("Account not found!");
-            } else if (res.message === "Invalid credentials!") {
-                setError("Invalid password!");
+            if (res.message === 'Account not found!') {
+                setError('Account not found!');
+            } else if (res.message === 'Invalid credentials!') {
+                setError('Invalid password!');
+            } else if (res.accessToken && res.refreshToken) {
+                await AsyncStorage.setItem('accessToken', res.accessToken);
+                await AsyncStorage.setItem('refreshToken', res.refreshToken);
+                await AsyncStorage.setItem('userId', JSON.stringify(res.userId));
+                login(res.accessToken, res.refreshToken);
             } else {
-                if (res.accessToken && res.refreshToken) {
-                    await AsyncStorage.setItem('accessToken', res.accessToken);
-                    await AsyncStorage.setItem('refreshToken', res.refreshToken);
-                    await AsyncStorage.setItem('userId', JSON.stringify(res.userId));
-                    login(res.accessToken, res.refreshToken);
-                    // Bỏ router.replace ở đây. AuthGuard trong _layout.tsx sẽ tự quét accessToken và phân loại Admin/User.
-                } else {
-                    setError("Failed to retrieve authentication token.");
-                }
+                setError('Failed to retrieve authentication token.');
             }
         } catch (err: any) {
             setError(err?.message || 'Account not found!');
@@ -70,16 +66,15 @@ export default function LoginScreen() {
             <StatusBar barStyle="light-content" backgroundColor="#000" />
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            >
                 <ScrollView
                     contentContainerStyle={styles.container}
                     showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled">
-
-                    {/* ─── LOGO ─── */}
+                    keyboardShouldPersistTaps="handled"
+                >
                     <Text style={styles.logo}>AABT</Text>
 
-                    {/* ─── INPUTS ─── */}
                     <View style={styles.form}>
                         <Text style={styles.label}>EMAIL</Text>
                         <View style={styles.inputWrapper}>
@@ -104,7 +99,8 @@ export default function LoginScreen() {
                             />
                             <TouchableOpacity
                                 style={styles.eyeBtn}
-                                onPress={() => setShowPassword(!showPassword)}>
+                                onPress={() => setShowPassword(!showPassword)}
+                            >
                                 <Ionicons
                                     name={showPassword ? 'eye-off' : 'eye'}
                                     size={20}
@@ -118,7 +114,6 @@ export default function LoginScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* ─── ERROR BOX ─── */}
                     {error ? (
                         <View style={styles.errorBox}>
                             <Ionicons name="alert-circle" size={16} color="#FF6B6B" />
@@ -126,40 +121,27 @@ export default function LoginScreen() {
                         </View>
                     ) : null}
 
-                    {/* ─── LOGIN BUTTON ─── */}
                     <TouchableOpacity
                         activeOpacity={0.85}
                         disabled={loading}
-                        onPress={handleLogin}>
+                        onPress={handleLogin}
+                    >
                         <LinearGradient
                             colors={['#33D294', '#7C6FEC']}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 0 }}
-                            style={styles.loginBtn}>
-                            {loading
-                                ? <ActivityIndicator color={Colors.white} />
-                                : <Text style={styles.loginBtnText}>LOGIN</Text>
-                            }
+                            style={styles.loginBtn}
+                        >
+                            {loading ? (
+                                <ActivityIndicator color={Colors.white} />
+                            ) : (
+                                <Text style={styles.loginBtnText}>LOGIN</Text>
+                            )}
                         </LinearGradient>
                     </TouchableOpacity>
 
-                    {/* ─── DIVIDER ─── */}
-                    {/* <View style={styles.divider}>
-                        <View style={styles.dividerLine} />
-                        <Text style={styles.dividerText}>OR CONTINUE WITH</Text>
-                        <View style={styles.dividerLine} />
-                    </View> */}
+                    {/* Google login is temporarily disabled on the login screen. */}
 
-                    {/* ─── GOOGLE ─── */}
-                    {/* <TouchableOpacity style={styles.googleBtn}>
-                        <Image
-                            source={require('@/assets/images/google-icon.png')}
-                            style={styles.googleIconImg}
-                        />
-                        <Text style={styles.googleText}>GOOGLE</Text>
-                    </TouchableOpacity> */}
-
-                    {/* ─── SIGN UP LINK ─── */}
                     <View style={styles.signupRow}>
                         <Text style={styles.signupHint}>DON&apos;T HAVE AN ACCOUNT? </Text>
                         <TouchableOpacity onPress={() => router.push('/signup')}>
@@ -167,6 +149,16 @@ export default function LoginScreen() {
                         </TouchableOpacity>
                     </View>
 
+                    <TouchableOpacity
+                        style={styles.devSkipBtn}
+                        onPress={() => {
+                            login();
+                            router.replace('/(tabs)/home');
+                        }}
+                    >
+                        <Ionicons name="code-slash" size={12} color="#444" />
+                        <Text style={styles.devSkipText}>Dev: Skip Login</Text>
+                    </TouchableOpacity>
                 </ScrollView>
             </KeyboardAvoidingView>
         </SafeAreaView>
@@ -187,8 +179,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-
-    // Logo
     logo: {
         fontSize: 48,
         fontWeight: '900',
@@ -196,8 +186,6 @@ const styles = StyleSheet.create({
         letterSpacing: 6,
         marginBottom: 48,
     },
-
-    // Form
     form: { width: '100%', marginBottom: 24 },
     label: {
         fontSize: 11,
@@ -235,8 +223,6 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         letterSpacing: 1,
     },
-
-    // Login button
     loginBtn: {
         width: '100%',
         height: 54,
@@ -252,8 +238,6 @@ const styles = StyleSheet.create({
         color: Colors.white,
         letterSpacing: 3,
     },
-
-    // Divider
     divider: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -263,8 +247,6 @@ const styles = StyleSheet.create({
     },
     dividerLine: { flex: 1, height: 1, backgroundColor: '#222' },
     dividerText: { fontSize: 11, color: Colors.gray, fontWeight: '600', letterSpacing: 1 },
-
-    // Google
     googleBtn: {
         width: '100%',
         height: 52,
@@ -280,13 +262,9 @@ const styles = StyleSheet.create({
     },
     googleIconImg: { width: 22, height: 22, resizeMode: 'contain' },
     googleText: { fontSize: 14, fontWeight: '700', color: Colors.white, letterSpacing: 1 },
-
-    // Sign up
     signupRow: { flexDirection: 'row', alignItems: 'center' },
     signupHint: { fontSize: 12, color: Colors.gray, fontWeight: '600' },
     signupLink: { fontSize: 12, color: Colors.teal, fontWeight: '800', letterSpacing: 0.5 },
-
-    // Dev skip button
     devSkipBtn: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -301,8 +279,6 @@ const styles = StyleSheet.create({
         borderColor: '#333',
     },
     devSkipText: { fontSize: 11, color: '#666' },
-
-    // Error
     errorBox: {
         flexDirection: 'row',
         alignItems: 'center',

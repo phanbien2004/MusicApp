@@ -1,6 +1,15 @@
 import apiClient from '@/api/apiClient';
 
-export type InteractionType = 'SAVED' | 'PLAY' | 'SKIP' | 'PREVIOUS' | 'PAUSE' | 'JAM' | 'SHARE' | 'JUMP';
+export type InteractionType =
+    | 'SAVED'
+    | 'PICK'
+    | 'PLAY'
+    | 'SKIP'
+    | 'PREVIOUS'
+    | 'PAUSE'
+    | 'JAM'
+    | 'SHARE'
+    | 'JUMP';
 
 export interface CreateInteractionPayload {
     trackId: number;

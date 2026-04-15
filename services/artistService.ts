@@ -23,22 +23,31 @@ export interface AlbumsDTO {
     totalPages: number
 }
 
-export interface popularTrack {
-    id: 0,
-    title: string,
-    trackUrl: string,
-    thumbnailUrl: string,
-    duration: 0,
+export interface ArtistTrackContributorDTO {
+    id: number;
+    name: string;
+    role?: "OWNER" | "PRODUCER" | "FEATURED" | string;
+}
+
+export interface PopularTrackDTO {
+    id: number;
+    title: string;
+    trackUrl: string;
+    thumbnailUrl: string;
+    duration: number;
+    contributors: ArtistTrackContributorDTO[];
 }
 
 export interface ArtistProfileData {
     id: number;
     stageName: string;
-    bio: string;
     avatarUrl: string;
     coverUrl: string;
-    status: 'PENDING' | 'VERIFIED' | 'REJECTED';
     followerCount: number;
+    bio?: string;
+    status?: 'PENDING' | 'VERIFIED' | 'REJECTED';
+    popularTracks?: PopularTrackDTO[];
+    albums?: AlbumsDTO;
 }
 
 export const getMyArtistProfileAPI = async (): Promise<ArtistProfileData> => {
@@ -56,8 +65,10 @@ export const createArtistProfileAPI = async (payload: CreateArtistPayload) => {
 
 // Lấy hồ sơ nghệ sĩ theo artistId (GET /api/v1/artist/{id})
 export const getArtistProfileAPI = async (artistId: number): Promise<ArtistProfileData> => {
+    console.log(`GET Artist Public Profile: ${BASE_URL}/api/v1/artist/${artistId}`);
     const res = await apiClient.get(`${BASE_URL}/api/v1/artist/${artistId}`);
-    return res.data;
+    console.log("Response Get Artist Public Profile: ", res.data);
+    return res.data as ArtistProfileData;
 };
 
 // Cập nhật hồ sơ khi đang PENDING (PUT /api/v1/artist/update)

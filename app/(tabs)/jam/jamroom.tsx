@@ -8,7 +8,9 @@ import {
     Alert,
     Animated,
     Dimensions,
+    FlatList,
     Image,
+    Modal,
     SafeAreaView,
     StatusBar,
     StyleSheet,
@@ -25,7 +27,7 @@ import { useCurrentTrack } from '@/context/currentTrack-context';
 import { useJam } from '@/context/jam-context';
 
 import { createStompClient } from '@/api/apiSocket';
-import { deleteJamSessionAPI, inviteJamSessionAPI, leaveJamSessionAPI, updateJamSessionAPI } from '@/services/jamService';
+import { deleteJamSessionAPI, inviteJamSessionAPI, leaveJamSessionAPI, updateJamSessionAPI, getJam } from '@/services/jamService';
 import { searchAPI } from '@/services/searchService';
 
 import { acceptNotification, acceptNotificationRequestDTO } from '@/services/jamService';
@@ -48,7 +50,7 @@ export default function JamRoomScreen() {
     }>();
     const { accessToken } = useAuth();
     const { activeSession, clearActiveSession, isHydrated, setActiveSession } = useJam();
-    const { currentTrack, player, setCurrentTrack } = useCurrentTrack()!;
+    const { currentTrack, player, queue, queueCursor, setCurrentTrack, playNextInQueue, playPreviousInQueue, refreshQueue } = useCurrentTrack()!;
     const status = useAudioPlayerStatus(player);
     const isHost = Boolean(activeSession?.isHost);
 
@@ -67,6 +69,7 @@ export default function JamRoomScreen() {
 
     const [isSeeking, setIsSeeking] = useState(false);
     const [seekValue, setSeekValue] = useState(0);
+    const [showQueue, setShowQueue] = useState(false);
 
     const stompClientRef       = useRef<any>(null);
     const playerRef            = useRef(player);
@@ -83,6 +86,14 @@ export default function JamRoomScreen() {
             setInviteResults([]);
         }
     }, [inviteQuery]);
+
+    // Load queue khi host vào jamroom và queue đang rỗng
+    useEffect(() => {
+        if (isHost && queue.length === 0 && currentTrack?.id) {
+            refreshQueue(currentTrack.id).catch(() => {});
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isHost, activeSession?.sessionId, currentTrack?.id]);
 
     useEffect(() => {
         console.log("[JamRoom] Resetting sync guard for new session/re-join");
@@ -242,14 +253,30 @@ export default function JamRoomScreen() {
                     playerRef.current.pause()
                 }
             }else{
-                setCurrentTrack({
-                    id: data.id,
-                    title: data.title || '',
-                    thumbnailUrl: data.thumbnailUrl || '',
-                    duration: data.duration || 0,
-                    contributors: data.contributors || [],
-                    trackUrl: data.trackUrl || ''
-                }, true);
+                if (isHost) {
+                    // Host đã tự set track nội bộ rồi, bỏ qua message STOMP phản hồi của chính mình
+                    // để không bị reset / clear queue.
+                    return;
+                }
+
+                if (!data.trackUrl) {
+                    // Nếu broker không trả về trackUrl (chỉ trả ID/Title), member sẽ không thể tải nhạc.
+                    // -> Gọi getJam để lấy Full TrackDTO kèm presigned URL.
+                    getJam(activeSession?.sessionId || 0).then((jamData: any) => {
+                        if (jamData?.jamTrack?.trackUrl) {
+                            setCurrentTrack(jamData.jamTrack, true);
+                        }
+                    }).catch((e) => console.error("Lỗi lấy track cho member:", e));
+                } else {
+                    setCurrentTrack({
+                        id: data.id,
+                        title: data.title || '',
+                        thumbnailUrl: data.thumbnailUrl || '',
+                        duration: data.duration || 0,
+                        contributors: data.contributors || [],
+                        trackUrl: data.trackUrl
+                    }, true);
+                }
             }
         }
     }
@@ -415,9 +442,49 @@ export default function JamRoomScreen() {
             ));
         }
     };
+
+    const handleJamPrev = () => {
+        if (!isHost) {
+            if (stompClientRef.current?.connected && activeSession?.sessionId) {
+                stompClientRef.current.publish({
+                    destination: '/app/jam/notification',
+                    body: JSON.stringify({
+                        jamId: activeSession.sessionId,
+                        trackId: currentTrack?.id,
+                        notificationType: 'JAM_INTERACTION',
+                        interactionType: 'PREV',
+                    }),
+                });
+                Alert.alert('Request sent. Awaiting host approval');
+            }
+            return;
+        }
+        playPreviousInQueue();
+    };
+
+    const handleJamNext = () => {
+        if (!isHost) {
+            if (stompClientRef.current?.connected && activeSession?.sessionId) {
+                stompClientRef.current.publish({
+                    destination: '/app/jam/notification',
+                    body: JSON.stringify({
+                        jamId: activeSession.sessionId,
+                        trackId: currentTrack?.id,
+                        notificationType: 'JAM_INTERACTION',
+                        interactionType: 'NEXT',
+                    }),
+                });
+                Alert.alert('Request sent. Awaiting host approval');
+            }
+            return;
+        }
+        playNextInQueue({ userInitiated: true });
+    };
  
     const duration = status.duration > 0 ? status.duration : 1;
     const displayPosition = isSeeking ? seekValue : status.currentTime;
+    const hasPreviousTrack = queueCursor > 0;
+    const hasNextTrack = queueCursor >= 0 ? queueCursor < queue.length - 1 : queue.length > 0;
     const formatTime = (s: number) => {
         if (!s || isNaN(s)) return "0:00";
         const m = Math.floor(s / 60);
@@ -457,6 +524,9 @@ export default function JamRoomScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => openSheet('notification')} style={styles.smallIconBtn}>
                          <Ionicons name="notifications-outline" size={24} color={Colors.teal} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setShowQueue(true)} style={styles.smallIconBtn}>
+                         <Ionicons name="list" size={24} color={Colors.teal} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => openSheet('settings')} style={styles.smallIconBtn}>
                          <Ionicons name="settings-outline" size={24} color={Colors.teal} />
@@ -511,11 +581,23 @@ export default function JamRoomScreen() {
             {/* PLAYBACK CONTROLS */}
             <View style={styles.playbackControls}>
                 <TouchableOpacity><Ionicons name="shuffle" size={24} color="#FFF" /></TouchableOpacity>
-                <TouchableOpacity><Ionicons name="play-skip-back" size={32} color="#FFF" /></TouchableOpacity>
+                <TouchableOpacity
+                    onPress={handleJamPrev}
+                    disabled={isHost && !hasPreviousTrack}
+                    style={isHost && !hasPreviousTrack ? { opacity: 0.4 } : undefined}
+                >
+                    <Ionicons name="play-skip-back" size={32} color={isHost && !hasPreviousTrack ? '#555' : '#FFF'} />
+                </TouchableOpacity>
                 <TouchableOpacity style={styles.playBtn} onPress={handlePlayPause}>
                     <Ionicons name={status.playing ? 'pause' : 'play'} size={32} color="#000" />
                 </TouchableOpacity>
-                <TouchableOpacity><Ionicons name="play-skip-forward" size={32} color="#FFF" /></TouchableOpacity>
+                <TouchableOpacity
+                    onPress={handleJamNext}
+                    disabled={isHost && !hasNextTrack}
+                    style={isHost && !hasNextTrack ? { opacity: 0.4 } : undefined}
+                >
+                    <Ionicons name="play-skip-forward" size={32} color={isHost && !hasNextTrack ? '#555' : '#FFF'} />
+                </TouchableOpacity>
                 <TouchableOpacity><Ionicons name="repeat" size={24} color="#FFF" /></TouchableOpacity>
             </View>
 
@@ -570,6 +652,65 @@ export default function JamRoomScreen() {
                     </Animated.View>
                 </>
             )}
+            {/* QUEUE MODAL */}
+            <Modal visible={showQueue} transparent animationType="slide">
+                <View style={styles.queueModalOverlay}>
+                    <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowQueue(false)} />
+                    <View style={styles.queueSheet}>
+                        <View style={styles.queueDragHandle} />
+                        <View style={styles.queueHeaderRow}>
+                            <Text style={styles.queueTitle}>Queue</Text>
+                            <Text style={styles.queueSubtitle}>{queue.length} tracks loaded</Text>
+                        </View>
+                        {queue.length === 0 ? (
+                            <View style={styles.queueEmptyState}>
+                                <Ionicons name="list-outline" size={40} color="#555" />
+                                <Text style={styles.queueEmptyText}>Queue chưa có dữ liệu.</Text>
+                            </View>
+                        ) : (
+                            <FlatList
+                                data={queue}
+                                keyExtractor={(item, index) => `${item.id}-${index}`}
+                                contentContainerStyle={styles.queueListContent}
+                                renderItem={({ item }) => {
+                                    const isActive = item.id === currentTrack?.id;
+                                    return (
+                                        <TouchableOpacity
+                                            style={[styles.queueItem, isActive && styles.queueItemActive]}
+                                            onPress={() => {
+                                                setCurrentTrack(item, false, { source: 'queue' });
+                                                setShowQueue(false);
+                                            }}
+                                        >
+                                            {item.thumbnailUrl ? (
+                                                <Image source={{ uri: item.thumbnailUrl }} style={styles.queueThumb} />
+                                            ) : (
+                                                <View style={[styles.queueThumb, styles.queueThumbFallback]}>
+                                                    <Ionicons name="musical-notes" size={18} color="#555" />
+                                                </View>
+                                            )}
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={[styles.queueTrackTitle, isActive && { color: Colors.teal }]} numberOfLines={1}>
+                                                    {item.title}
+                                                </Text>
+                                                <Text style={styles.queueTrackArtist} numberOfLines={1}>
+                                                    {Array.isArray(item.contributors) && item.contributors.length > 0
+                                                        ? item.contributors.map((c: any) => c.name).join(', ')
+                                                        : 'Unknown Artist'}
+                                                </Text>
+                                            </View>
+                                            {isActive
+                                                ? <Ionicons name="musical-notes" size={18} color={Colors.teal} />
+                                                : <Ionicons name="chevron-forward" size={18} color="#555" />}
+                                        </TouchableOpacity>
+                                    );
+                                }}
+                            />
+                        )}
+                    </View>
+                </View>
+            </Modal>
+
         </SafeAreaView>
     );
 }
@@ -603,5 +744,22 @@ const styles = StyleSheet.create({
     overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 100, elevation: 10 },
     sheet: { position: 'absolute', bottom: 0, left: 0, right: 0, height: SHEET_HEIGHT, backgroundColor: '#111', borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 20, paddingBottom: 20, zIndex: 101, elevation: 11 },
     sheetHeader: { width: '100%', alignItems: 'center', paddingVertical: 15 },
-    dragHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#333' }
-});
+    dragHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#333' },
+
+    // Queue modal
+    queueModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
+    queueSheet: { backgroundColor: '#181818', borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: height * 0.65, paddingHorizontal: 0, paddingBottom: 20 },
+    queueDragHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#444', alignSelf: 'center', marginTop: 12, marginBottom: 4 },
+    queueHeaderRow: { alignItems: 'center', marginBottom: 10 },
+    queueTitle: { color: '#FFF', fontSize: 18, fontWeight: '800', textAlign: 'center', marginVertical: 10 },
+    queueSubtitle: { color: '#A0A0A0', fontSize: 12, marginTop: -6, marginBottom: 10 },
+    queueEmptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40, gap: 10 },
+    queueEmptyText: { color: '#555', fontSize: 14 },
+    queueListContent: { paddingHorizontal: 16, paddingBottom: 12 },
+    queueItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 14, marginBottom: 8, backgroundColor: '#202020' },
+    queueItemActive: { borderWidth: 1, borderColor: Colors.teal + '55', backgroundColor: Colors.teal + '14' },
+    queueThumb: { width: 48, height: 48, borderRadius: 10, backgroundColor: '#222' },
+    queueThumbFallback: { alignItems: 'center', justifyContent: 'center' },
+    queueTrackTitle: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+    queueTrackArtist: { color: '#A0A0A0', fontSize: 12, marginTop: 4 },
+})

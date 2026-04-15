@@ -1,3 +1,12 @@
+import PremiumUpgradeModal from '@/components/PremiumUpgradeModal';
+import { Colors } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
+import { usePlayer } from '@/context/player-context';
+import { getMySubscriptionAPI, MySubscriptionResponse } from '@/services/paymentService';
+import { getProfileAPI, ProfileResponse } from '@/services/profileService';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
     Alert,
@@ -9,15 +18,6 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Colors } from '@/constants/theme';
-import { useAuth } from '@/context/auth-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { usePlayer } from '@/context/player-context';
-import { getProfileAPI, ProfileResponse } from '@/services/profileService';
-import PremiumUpgradeModal from '@/components/PremiumUpgradeModal';
-import { getMySubscriptionAPI, MySubscriptionResponse } from '@/services/paymentService';
 
 function formatSubscriptionDate(date?: string | null) {
     if (!date) return 'N/A';
@@ -47,8 +47,12 @@ export default function AccountSettingsScreen() {
                 getProfileAPI(userId).then(res => setProfileData(res)).catch(console.log);
                 getMySubscriptionAPI()
                     .then(res => {
+                        console.log(res);
                         setSubscription(res);
-                        setIsPremium(res?.isActive || false);
+                        {res.subscriptionType === "PREMIUM" ?
+                            setIsPremium(true) :
+                            setIsPremium(false)
+                        }
                     })
                     .catch(console.log);
             }
@@ -184,6 +188,7 @@ export default function AccountSettingsScreen() {
                 visible={showPremiumModal}
                 onClose={() => setShowPremiumModal(false)}
                 onSuccess={() => {
+                    setShowPremiumModal(false);
                     fetchData();
                 }}
             />

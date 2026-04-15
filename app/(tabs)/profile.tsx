@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 
 import { IMAGE } from '@/constants/image';
-import { PlayList } from '@/services/listService';
+import { PlayList, getMemberPlayListAPI } from '@/services/listService';
 import { getMySubscriptionAPI } from '@/services/paymentService';
 import { getProfileAPI, ProfileResponse } from '@/services/profileService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -29,7 +29,7 @@ const PLAYLIST_CARD_WIDTH = (width - 48) / 2;
 export default function ProfileScreen() {
     const router = useRouter();
     const [profileData, setProfileData] = useState<ProfileResponse | null>(null);
-    const [playlists, setPlaylists] = useState<PlayList[] | null>(null);
+    const [playlists, setPlaylists] = useState<PlayList[]>([]);
     const [isPremium, setIsPremium] = useState(false);
 
     const fetchProfileData = useCallback(async () => {
@@ -37,13 +37,35 @@ export default function ProfileScreen() {
             const userId = await AsyncStorage.getItem('userId');
             if (userId) {
                 // Fetch profile
-                getProfileAPI(userId).then(res => setProfileData(res)).catch(e => console.log(e));
+                const [profileResult, playlistResult, subscriptionResult] = await Promise.allSettled([
+                    getProfileAPI(userId),
+                    getMemberPlayListAPI(userId),
+                    getMySubscriptionAPI(),
+                ]);
+
+                if (profileResult.status === 'fulfilled') {
+                    setProfileData(profileResult.value);
+                } else {
+                    setProfileData(null);
+                    console.log('Error loading profile:', profileResult.reason);
+                }
+
+                if (playlistResult.status === 'fulfilled') {
+                    setPlaylists(playlistResult.value || []);
+                } else {
+                    setPlaylists([]);
+                    console.log('Error loading playlists:', playlistResult.reason);
+                }
+
+                if (subscriptionResult.status === 'fulfilled') {
+                    setIsPremium(subscriptionResult.value?.isActive || false);
+                } else {
+                    setIsPremium(false);
+                    console.log('Error loading premium plan:', subscriptionResult.reason);
+                }
                 
                 // Fetch premium status độc lập để hiển thị viền Avatar và UI
-                getMySubscriptionAPI().then(subscription => {
                      // Kiểm tra nếu isActive là true và nó là PREMIUM
-                     setIsPremium(subscription?.isActive || false);
-                }).catch(e => console.log("Error loading premium plan: ", e?.message));
             }
         } catch (error) {
             console.error("Error fetching general profile:", error);
@@ -122,7 +144,7 @@ export default function ProfileScreen() {
                         </View>
                         <View style={styles.statDivider} />
                         <View style={styles.statItem}>
-                            <Text style={styles.statNumber}>{profileData?.playlistCount || 0}</Text>
+                            <Text style={styles.statNumber}>{playlists.length}</Text>
                             <Text style={styles.statLabel}>PLAYLISTS</Text>
                         </View>
                     </View>
@@ -172,7 +194,7 @@ export default function ProfileScreen() {
                     </TouchableOpacity>
                 </View>
                 <View style={styles.playlistsGrid}>
-                    {profileData?.playlists?.map(item => (
+                    {playlists.map(item => (
                         <TouchableOpacity 
                             key={item.id} 
                             style={styles.playlistCard} 
