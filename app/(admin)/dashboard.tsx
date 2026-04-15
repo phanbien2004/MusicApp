@@ -11,19 +11,19 @@ export default function AdminDashboard() {
     const menuItems = [
         {
             title: 'ARTIST VERIFICATION',
-            subtitle: '84 APPLICANTS',
+            subtitle: '',
             icon: 'person-add-outline',
             route: '/(admin)/artist-verification', 
         },
         {
             title: 'TRACK REVIEW',
-            subtitle: '124 NEW UPLOAD',
+            subtitle: '',
             icon: 'musical-notes-outline',
             route: '/(admin)/track-review',
         },
         {
             title: 'ALBUM REVIEW',
-            subtitle: 'VIEW PENDING ALBUMS',
+            subtitle: '',
             icon: 'albums-outline',
             route: '/(admin)/album-review',
         },

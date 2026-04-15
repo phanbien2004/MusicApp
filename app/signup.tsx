@@ -2,13 +2,13 @@ import { Colors } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { registerAPI } from '@/services/authService';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { jwtDecode } from 'jwt-decode';
 import React, { useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
-    Image,
     KeyboardAvoidingView,
     Platform,
     SafeAreaView,
@@ -18,10 +18,8 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { jwtDecode } from 'jwt-decode';
 import Toast from 'react-native-root-toast';
 
 export default function SignupScreen() {
@@ -210,7 +208,7 @@ export default function SignupScreen() {
                         </LinearGradient>
                     </TouchableOpacity>
 
-                    {/* ─── DIVIDER ─── */}
+                    {/* ─── DIVIDER ───
                     <View style={styles.divider}>
                         <View style={styles.dividerLine} />
                         <Text style={styles.dividerText}>OR SIGN UP WITH</Text>
@@ -218,13 +216,13 @@ export default function SignupScreen() {
                     </View>
 
                     {/* ─── GOOGLE ─── */}
-                    <TouchableOpacity style={styles.googleBtn}>
+                    {/* <TouchableOpacity style={styles.googleBtn}>
                         <Image
                             source={require('@/assets/images/google-icon.png')}
                             style={styles.googleIconImg}
                         />
                         <Text style={styles.googleText}>GOOGLE</Text>
-                    </TouchableOpacity>
+                    </TouchableOpacity> */} 
 
                     {/* ─── LOGIN LINK ─── */}
                     <View style={styles.loginRow}>

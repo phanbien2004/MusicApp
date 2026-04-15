@@ -460,8 +460,24 @@ export default function UploadTrackScreen() {
         if (!draftData) return;
         setIsFinalizing(true);
         try {
+            // Luôn gọi submitFinalizeAPI để chốt track
+            const finalContributors: contributorDTO[] = [
+                ...selectedContributors.map(c => ({
+                    id: Number(c.artist.id),
+                    name: c.artist.name,
+                    role: c.role,
+                })),
+                { id: Number(id), name: stageName, role: 'OWNER' },
+            ];
+
+            await submitFinalizeAPI({
+                id: draftData.trackId,
+                contributors: finalContributors,
+                tagIds: reviewTags.map(t => t.id),
+            });
+
             if (isAlbumFlow) {
-                // Luồng Album: CHỈ gọi submitTrackAlbumAPI
+                // Luồng Album: Gán track vào album sau khi finalize
                 console.log('[UploadTrack] Submitting track to album:', {
                     albumId: Number(albumId),
                     trackId: draftData.trackId,
@@ -489,22 +505,7 @@ export default function UploadTrackScreen() {
                     ]
                 );
             } else {
-                // Luồng Upload Track Đơn Lẻ: Gọi submitFinalizeAPI
-                const finalContributors: contributorDTO[] = [
-                    ...selectedContributors.map(c => ({
-                        id: Number(c.artist.id),
-                        name: c.artist.name,
-                        role: c.role,
-                    })),
-                    { id: Number(id), name: stageName, role: 'OWNER' },
-                ];
-
-                await submitFinalizeAPI({
-                    id: draftData.trackId,
-                    contributors: finalContributors,
-                    tagIds: reviewTags.map(t => t.id),
-                });
-
+                // Luồng Upload Track Đơn Lẻ: Inform the user
                 Alert.alert(
                     'Track Submitted',
                     "Your track is being processed. We'll notify you when it's ready.",
@@ -595,7 +596,6 @@ export default function UploadTrackScreen() {
                     />
 
                     {/* Chỉ hiển thị contributors và tags nếu không phải là luồng thêm vào album */}
-                    {!isAlbumFlow && (
                         <>
                             <View style={styles.sectionHeaderRow}>
                                 <Text style={styles.reviewLabel}>Contributors</Text>
@@ -632,7 +632,6 @@ export default function UploadTrackScreen() {
                                 ))}
                             </View>
                         </>
-                    )}
 
                     <TouchableOpacity
                         style={[styles.submitBtn, isFinalizing && { opacity: 0.6 }]}

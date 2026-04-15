@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createStompClient } from '@/api/apiSocket';
 import { USER_ID_STORAGE_KEY } from '@/constants/storageKeys';
 import { useAuth } from './auth-context';
+import { getOldNotificationsAPI } from '@/services/notificationService';
 
 export interface NotificationDTO {
     notificationId: number | null;
@@ -45,6 +46,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             if (!userId) return;
 
             client = createStompClient();
+
+            // Lấy thông báo cũ trước
+            const historicalNotifications = await getOldNotificationsAPI(userId);
+            if (historicalNotifications && Array.isArray(historicalNotifications)) {
+                setNotifications(historicalNotifications);
+                // Giả định toàn bộ chưa đọc hoặc tính tuỳ chỉnh
+                setUnreadCount(historicalNotifications.length);
+            }
+
             client.onConnect = () => {
                 subscription = client.subscribe(`/user/${userId}/queue/notice`, (msg: any) => {
                     try {

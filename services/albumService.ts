@@ -67,3 +67,31 @@ export const getAlbumDetailAPI = async (
     */
   }
 };
+
+export const addTrackToAlbumAPI = async (
+  albumId: number,
+  trackId: number,
+  position: number,
+) => {
+  console.log(`POST ADDTRACKTOALBUMAPI : ${BASE_URL}/api/v1/album-track`);
+  console.log("Payload: ", { albumId, trackId, position });
+  const res = await apiClient.post(`${BASE_URL}/api/v1/album-track`, {
+    albumId,
+    trackId,
+    position,
+  });
+  console.log("Response AddTrackToAlbumAPI: ", res.data);
+  return res.data;
+};
+
+export const removeTrackFromAlbumAPI = async (
+  albumId: number,
+  trackId: number,
+) => {
+  console.log(`DELETE REMOVETRACKFROMALBUMAPI : ${BASE_URL}/api/v1/album-track/${albumId}/${trackId}`);
+  const res = await apiClient.delete(
+    `${BASE_URL}/api/v1/album-track/${albumId}/${trackId}`
+  );
+  console.log("Response RemoveTrackFromAlbumAPI: ", res.data);
+  return res.data;
+};

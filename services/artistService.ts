@@ -48,6 +48,7 @@ export interface ArtistProfileData {
     status?: 'PENDING' | 'VERIFIED' | 'REJECTED';
     popularTracks?: PopularTrackDTO[];
     albums?: AlbumsDTO;
+    followed?: boolean;
 }
 
 export const getMyArtistProfileAPI = async (): Promise<ArtistProfileData> => {
@@ -74,5 +75,42 @@ export const getArtistProfileAPI = async (artistId: number): Promise<ArtistProfi
 // Cập nhật hồ sơ khi đang PENDING (PUT /api/v1/artist/update)
 export const updateArtistProfileAPI = async (payload: Partial<CreateArtistPayload>) => {
     const res = await apiClient.put(`${BASE_URL}/api/v1/artist/update`, payload);
+    return res.data;
+};
+
+// ── Follower APIs ─────────────────────────────────────────────────────────────
+
+export interface FollowerUserDTO {
+    id: number;
+    avatarUrl: string;
+    name: string;
+    friendStatus: string;
+}
+
+export interface ArtistFollowersResponse {
+    content: FollowerUserDTO[];
+    currentPage: number;
+    pageSize: number;
+    totalElements: number;
+    totalPages: number;
+}
+
+export const followArtistAPI = async (artistId: number) => {
+    console.log(`POST Follow Artist: ${BASE_URL}/api/v1/follower/${artistId}`);
+    const res = await apiClient.post(`${BASE_URL}/api/v1/follower/${artistId}`);
+    return res.data;
+};
+
+export const unfollowArtistAPI = async (artistId: number) => {
+    console.log(`DELETE Unfollow Artist: ${BASE_URL}/api/v1/follower/${artistId}`);
+    const res = await apiClient.delete(`${BASE_URL}/api/v1/follower/${artistId}`);
+    return res.data;
+};
+
+export const getArtistFollowersAPI = async (artistId: number, index: number, size: number): Promise<ArtistFollowersResponse> => {
+    console.log(`GET Artist Followers: ${BASE_URL}/api/v1/follower/artistId?artistId=${artistId}&index=${index}&size=${size}`);
+    const res = await apiClient.get(`${BASE_URL}/api/v1/follower/artistId`, {
+        params: { artistId, index, size }
+    });
     return res.data;
 };

@@ -1,22 +1,24 @@
-import { IMAGE } from "@/constants/image";
 import { Colors } from "@/constants/theme";
 import { useCurrentTrack } from "@/context/currentTrack-context";
 import { usePlayer } from "@/context/player-context";
-import { AlbumDetail, getAlbumDetailAPI } from "@/services/albumService";
-import { TrackContentType } from "@/services/searchService";
+import { AlbumDetail, getAlbumDetailAPI, addTrackToAlbumAPI, removeTrackFromAlbumAPI } from "@/services/albumService";
+import { searchAPI, TrackContentType } from "@/services/searchService";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAudioPlayerStatus } from "expo-audio";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   FlatList,
   Image,
+  Modal,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -43,8 +45,10 @@ export default function AlbumDetailScreen() {
     thumbnailUrl?: string;
     releaseYear?: string;
     artistName?: string;
+    isOwner?: string;
   }>();
   const albumId = Number(params.id);
+  const isOwnerMode = params.isOwner === 'true';
 
   // --- AUDIO CONTEXT & STATUS ---
   const { currentTrack, setCurrentTrack, player } = useCurrentTrack()!;
@@ -68,6 +72,15 @@ export default function AlbumDetailScreen() {
   });
   const [loading, setLoading] = useState(true);
   const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null);
+
+  // --- MODAL STATES ---
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [searchResults, setSearchResults] = useState<TrackContentType[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  const [showTrackOptions, setShowTrackOptions] = useState(false);
+  const [selectedTrack, setSelectedTrack] = useState<TrackContentType | null>(null);
 
   const loadDetail = useCallback(async () => {
     if (!albumId || !Number.isFinite(albumId)) {
@@ -106,14 +119,71 @@ export default function AlbumDetailScreen() {
     }, [loadDetail]),
   );
 
+  // --- SEARCH EFFECT FOR OWNER ---
+  useEffect(() => {
+    if (!isOwnerMode) return;
+    if (!searchKeyword.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    
+    const delayDebounce = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const res = await searchAPI({ keyword: searchKeyword, type: "tracks", pageNumber: 1, pageSize: 50 });
+        const globalTracks = res.trackPreviewDTOS?.content || [];
+        
+        // Chỉ lấy những track có tên bạn đóng góp
+        const myTracks = globalTracks.filter(track => 
+            track.contributors?.some((c: any) => c.name === params.artistName)
+        );
+
+        // Loại bỏ các track đã có trong Album
+        const existedIds = detail?.tracks?.map(t => t.id) || [];
+        setSearchResults(myTracks.filter(t => !existedIds.includes(t.id)));
+
+      } catch (e) { 
+        console.error("Search failed: ", e); 
+      } finally { 
+        setSearchLoading(false); 
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounce);
+  }, [searchKeyword, isOwnerMode, detail?.tracks, params.artistName]);
+
+  // --- ACTION LOGIC FOR OWNER ---
+  const handleRemoveTrack = async () => {
+    if (!selectedTrack || !albumId) return;
+    try {
+      await removeTrackFromAlbumAPI(albumId, selectedTrack.id);
+      setShowTrackOptions(false);
+      loadDetail(); // Reload list
+    } catch (err) {
+      Alert.alert("Error", "Could not remove track.");
+    }
+  };
+
+  const handleAddTrack = async (trackId: number) => {
+    if (!albumId) return;
+    try {
+      const position = detail?.tracks?.length ? detail.tracks.length + 1 : 1;
+      await addTrackToAlbumAPI(albumId, trackId, position);
+      setShowSearchModal(false);
+      setSearchKeyword("");
+      loadDetail(); // Reload list
+    } catch (err) {
+      Alert.alert("Error", "Could not add track.");
+    }
+  };
+
   // --- LOGIC PHÁT NHẠC ---
   const handleTogglePlayAlbum = async () => {
     if (!detail?.tracks?.length) return;
 
-    const isSameContext = activePlaylistId === detail.id.toString();
-
-    if (!isSameContext) {
-      // Phát bài đầu tiên của album này
+    if (status.playing && activePlaylistId === detail.id.toString()) {
+      player.pause();
+    } else {
       const firstTrack = {
         ...detail.tracks[0],
         trackUrl: (detail.tracks[0] as any).trackUrl,
@@ -124,12 +194,6 @@ export default function AlbumDetailScreen() {
         source: "album",
         albumId: detail.id,
       });
-    } else {
-      if (status.playing) {
-        player.pause();
-      } else {
-        player.play();
-      }
     }
   };
 
@@ -145,27 +209,34 @@ export default function AlbumDetailScreen() {
   if (loading && !detail)
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={Colors.teal} size="large" />
+        <ActivityIndicator size="large" color={Colors.teal} />
       </View>
     );
-  if (!detail) return null;
 
-  const handleBack = () => {
-    const tab = lastActiveTab || "search";
-    router.navigate(`/(tabs)/${tab}` as any);
-  };
+  if (!detail)
+    return (
+      <View style={styles.centered}>
+        <Text style={{ color: "#FFF" }}>Không tìm thấy Album</Text>
+      </View>
+    );
 
   const isPlayingAlbum =
     status.playing && activePlaylistId === detail.id.toString();
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      {/* BACK BUTTON */}
-      <View style={[styles.headerFixed, { paddingTop: insets.top }]}>
-        <TouchableOpacity onPress={handleBack} style={styles.backIcon}>
-          <Ionicons name="chevron-back" size={28} color="#FFF" />
+      {/* HEADER TĨNH NẰM NGOÀI FLATLIST ĐỂ LUÔN HIỂN THỊ TRÊN CÙNG */}
+      <View style={[styles.headerFixed, { top: insets.top || 10 }]}>
+        <TouchableOpacity
+          style={styles.backIcon}
+          onPress={() => {
+            const tab = lastActiveTab || "album";
+            router.navigate(`/(tabs)/${tab}` as any);
+          }}
+        >
+          <Ionicons name="chevron-back" size={32} color="#FFF" />
         </TouchableOpacity>
       </View>
 
@@ -173,38 +244,28 @@ export default function AlbumDetailScreen() {
         data={detail.tracks}
         keyExtractor={(item, index) => `${item.id}-${index}`}
         contentContainerStyle={{
+          paddingTop: insets.top + 60,
+          paddingBottom: insets.bottom + 120, // Chừa khoảng trống cho thanh Player
           paddingHorizontal: 20,
-          paddingTop: insets.top + 20,
-          paddingBottom: 150,
         }}
         ListHeaderComponent={
           <View style={styles.headerContainer}>
             <View style={styles.coverWrapper}>
-              {detail.thumbnailUrl ? (
-                <Image
-                  source={{ uri: detail.thumbnailUrl }}
-                  style={styles.coverImg}
-                />
-              ) : (
-                <Image
-                  source={IMAGE.defaultThumbnail}
-                  style={styles.coverImg}
-                />
-              )}
+              <Image source={{ uri: detail.thumbnailUrl }} style={styles.coverImg} />
             </View>
 
             <View style={styles.titleRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.titleText} numberOfLines={2}>
-                  {detail.title}
-                </Text>
+                <Text style={styles.titleText}>{detail.title}</Text>
                 <Text style={styles.artistLabel}>
                   {detail.artistName || "Unknown Artist"}
                 </Text>
               </View>
-              <TouchableOpacity style={styles.addBtn}>
-                <Ionicons name="add-circle-outline" size={28} color="#FFF" />
-              </TouchableOpacity>
+              {isOwnerMode && (
+                  <TouchableOpacity style={styles.addBtn} onPress={() => setShowSearchModal(true)}>
+                    <Ionicons name="add-circle-outline" size={28} color="#FFF" />
+                  </TouchableOpacity>
+              )}
             </View>
 
             <View style={styles.actionRow}>
@@ -283,13 +344,87 @@ export default function AlbumDetailScreen() {
                 />
               ) : null}
 
-              <TouchableOpacity style={{ padding: 5 }}>
-                <Ionicons name="ellipsis-vertical" size={20} color="#666" />
-              </TouchableOpacity>
+              {isOwnerMode && (
+                <TouchableOpacity style={{ padding: 5 }} onPress={() => {
+                  setSelectedTrack(item); 
+                  setShowTrackOptions(true); 
+                }}>
+                  <Ionicons name="ellipsis-vertical" size={20} color="#666" />
+                </TouchableOpacity>
+              )}
             </TouchableOpacity>
           );
         }}
       />
+
+       {/* MODAL BOTTOM: Thêm bài hát */}
+      <Modal animationType="slide" transparent={true} visible={showSearchModal} onRequestClose={() => setShowSearchModal(false)}>
+        <View style={styles.modalBg}>
+            <View style={[styles.modalSheet, { height: '80%' }]}>
+                {/* Drag Handle */}
+                <View style={styles.dragHandleWrap} onTouchEnd={() => setShowSearchModal(false)}>
+                    <View style={styles.dragHandle} />
+                </View>
+
+                {/* Search Bar */}
+                <View style={styles.searchWrap}>
+                    <Ionicons name="search" size={20} color={Colors.gray} />
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholder="Search your tracks..."
+                        placeholderTextColor={Colors.gray}
+                        value={searchKeyword}
+                        onChangeText={setSearchKeyword}
+                    />
+                </View>
+
+                <FlatList
+                    data={searchResults}
+                    keyExtractor={(item) => item.id.toString()}
+                    style={{ flex: 1, marginTop: 10 }}
+                    ListEmptyComponent={
+                        <View style={{ alignItems: 'center', marginTop: 40 }}>
+                            {searchLoading ? (
+                                <ActivityIndicator color={Colors.teal} />
+                            ) : searchKeyword.length > 0 ? (
+                                <Text style={{ color: Colors.gray }}>No matches found among your tracks.</Text>
+                            ) : (
+                                <Text style={{ color: Colors.gray }}>Type to search your tracks</Text>
+                            )}
+                        </View>
+                    }
+                    renderItem={({ item }) => (
+                        <View style={styles.searchItem}>
+                            <Image source={{ uri: item.thumbnailUrl }} style={styles.searchItemImg} />
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.searchItemTitle} numberOfLines={1}>{item.title}</Text>
+                                <Text style={styles.searchItemArtist} numberOfLines={1}>{getTrackArtistLabel(item)}</Text>
+                            </View>
+                            <TouchableOpacity onPress={() => handleAddTrack(item.id)}>
+                                <Ionicons name="add-circle" size={28} color={Colors.teal} />
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                />
+            </View>
+        </View>
+      </Modal>
+
+      {/* MODAL OPTIONS: Xóa Bài khỏi Album */}
+      <Modal animationType="fade" transparent={true} visible={showTrackOptions} onRequestClose={() => setShowTrackOptions(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowTrackOptions(false)}>
+            <View style={styles.optionsSheet}>
+                <View style={styles.optionsHeader}>
+                    <Text style={styles.optionsTitle}>{selectedTrack?.title}</Text>
+                </View>
+                <TouchableOpacity style={styles.optionItem} onPress={handleRemoveTrack}>
+                    <Ionicons name="trash-outline" size={24} color="#EF4444" />
+                    <Text style={[styles.optionText, { color: '#EF4444' }]}>Remove from Album</Text>
+                </TouchableOpacity>
+            </View>
+        </TouchableOpacity>
+      </Modal>
+
     </View>
   );
 }
@@ -328,14 +463,14 @@ const styles = StyleSheet.create({
   coverImg: { width: "100%", height: "100%" },
   titleRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: 10,
     marginTop: 20,
     width: "100%",
   },
   titleText: { color: "#FFF", fontSize: 24, fontWeight: "800" },
   artistLabel: { color: "#888", fontSize: 14, fontWeight: "600", marginTop: 4 },
-  addBtn: { padding: 5, marginTop: -5 },
+  addBtn: { padding: 5},
   actionRow: {
     flexDirection: "row",
     width: "100%",
@@ -374,4 +509,23 @@ const styles = StyleSheet.create({
   },
   trackTitle: { color: "#FFF", fontSize: 15, fontWeight: "600" },
   trackArtist: { color: "#888", fontSize: 13, marginTop: 2 },
+
+  // MODAL STUFF
+  modalBg: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
+  modalSheet: { backgroundColor: '#1E1E1E', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingBottom: 40 },
+  dragHandleWrap: { width: '100%', alignItems: 'center', paddingVertical: 12 },
+  dragHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#555' },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#333', borderRadius: 12, paddingHorizontal: 12, height: 44, gap: 8 },
+  searchInput: { flex: 1, color: Colors.white, fontSize: 16 },
+  searchItem: { flexDirection: 'row', alignItems: 'center', marginVertical: 8, gap: 12 },
+  searchItemImg: { width: 48, height: 48, borderRadius: 8 },
+  searchItemTitle: { color: Colors.white, fontSize: 15, fontWeight: 'bold' },
+  searchItemArtist: { color: Colors.gray, fontSize: 13, marginTop: 2 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  optionsSheet: { backgroundColor: '#222', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 40 },
+  optionsHeader: { padding: 20, borderBottomWidth: 1, borderColor: '#333' },
+  optionsTitle: { color: Colors.white, fontSize: 16, fontWeight: 'bold', textAlign: 'center' },
+  optionItem: { flexDirection: 'row', alignItems: 'center', padding: 20, gap: 16 },
+  optionText: { color: Colors.white, fontSize: 16, fontWeight: '500' }
 });

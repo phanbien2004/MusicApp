@@ -2,7 +2,8 @@ import { IMAGE } from "@/constants/image";
 import { Colors } from "@/constants/theme";
 import { useAuth } from "@/context/auth-context";
 import { useCurrentTrack } from "@/context/currentTrack-context";
-// import { followArtistAPI, unfollowArtistAPI } from '@/services/artistService'; // Đảm bảo đã có service này
+import { useNotifications } from "@/context/notification-context";
+import { followArtistAPI, unfollowArtistAPI } from '@/services/artistService';
 import {
   acceptFriendAPI,
   addFriendAPI,
@@ -13,7 +14,6 @@ import { searchAPI } from "@/services/searchService";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import { useNotifications } from "@/context/notification-context";
 import {
   ActivityIndicator,
   Animated,
@@ -93,7 +93,7 @@ interface SearchResult {
   name?: string;
   avatarUrl?: string;
   friendStatus?: "ACCEPTED" | "NONE" | "PENDING_RECEIVED" | "PENDING_SENT";
-  isFollowed?: boolean; // Trạng thái dành cho Artist
+  followed?: boolean; // Trạng thái dành cho Artist
 }
 
 export default function SearchScreen() {
@@ -167,7 +167,7 @@ export default function SearchScreen() {
 
   const handleTouchFollowArtist = async (id: number) => {
     try {
-      // await followArtistAPI(id.toString());
+      await followArtistAPI(id);
       updateLocalFollowStatus(id, true);
     } catch (e) {
       console.error(e);
@@ -176,7 +176,7 @@ export default function SearchScreen() {
 
   const handleTouchUnfollowArtist = async (id: number) => {
     try {
-      // await unfollowArtistAPI(id.toString());
+      await unfollowArtistAPI(id);
       updateLocalFollowStatus(id, false);
     } catch (e) {
       console.error(e);
@@ -351,20 +351,20 @@ export default function SearchScreen() {
             <TouchableOpacity
               style={[
                 styles.actionBtn,
-                item.isFollowed && styles.actionBtnActive,
+                item.followed && styles.actionBtnActive,
               ]}
               onPress={() => {
-                if (item.isFollowed) handleTouchUnfollowArtist(item.id);
+                if (item.followed) handleTouchUnfollowArtist(item.id);
                 else handleTouchFollowArtist(item.id);
               }}
             >
               <Text
                 style={[
                   styles.actionBtnText,
-                  item.isFollowed && styles.actionBtnTextActive,
+                  item.followed && styles.actionBtnTextActive,
                 ]}
               >
-                {item.isFollowed ? "Following" : "Follow"}
+                {item.followed ? "Following" : "Follow"}
               </Text>
             </TouchableOpacity>
           </TouchableOpacity>

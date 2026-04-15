@@ -1,5 +1,5 @@
-import { Colors } from '@/constants/theme';
 import { USER_ID_STORAGE_KEY } from '@/constants/storageKeys';
+import { Colors } from '@/constants/theme';
 import { CurrentTrack, useCurrentTrack } from '@/context/currentTrack-context';
 import { usePlayer } from '@/context/player-context';
 import { addTrackToPlayListAPI, createPlayListAPI, getMemberPlayListAPI, getPlayListDetailAPI } from '@/services/listService';
@@ -104,10 +104,15 @@ function CurrentTrackUI({ context }: { context: NonNullCurrentTrackContext }) {
         queue,
         queueCursor,
         activePlaybackContext,
-        playNextInQueue,
+        // playNextInQueue,
+        // playNextInQueue,
         playPreviousInQueue,
         seekTo,
         setCurrentTrack,
+        // isShuffle,
+        // repeatMode,
+        // toggleShuffle,
+        // toggleRepeatMode,
     } = context;
     const router = useRouter();
     const insets = useSafeAreaInsets();
@@ -324,7 +329,7 @@ function CurrentTrackUI({ context }: { context: NonNullCurrentTrackContext }) {
             </View>
 
             {/* INFO & CONTROLS */}
-            <View style={[styles.bottomSection, { paddingBottom: insets.bottom + 20 }]}>
+          <View style={[styles.bottomSection, { paddingBottom: insets.bottom + 20 }]}>
                 <View style={styles.songInfoContainer}>
                     <View style={styles.songTitleRow}>
                         <Text style={styles.songTitle} numberOfLines={1}>{currentTrack.title}</Text>
@@ -394,7 +399,7 @@ function CurrentTrackUI({ context }: { context: NonNullCurrentTrackContext }) {
                     </TouchableOpacity>
                     <TouchableOpacity
                         disabled={!hasNextTrack}
-                        onPress={() => playNextInQueue({ userInitiated: true })}
+                        // onPress={() => playNextInQueue({ userInitiated: true })}
                         style={!hasNextTrack ? styles.disabledControl : undefined}
                     >
                         <Ionicons name="play-skip-forward" size={36} color={hasNextTrack ? Colors.white : Colors.gray} />

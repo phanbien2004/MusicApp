@@ -1,20 +1,22 @@
 import { Colors } from '@/constants/theme';
 import { useCurrentTrack } from '@/context/currentTrack-context';
-import { AlbumsContentDTO, ArtistProfileData, getArtistProfileAPI, PopularTrackDTO } from '@/services/artistService';
+import { AlbumsContentDTO, ArtistProfileData, followArtistAPI, FollowerUserDTO, getArtistFollowersAPI, getArtistProfileAPI, PopularTrackDTO, unfollowArtistAPI } from '@/services/artistService';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
+    FlatList,
     Image,
+    Modal,
     SafeAreaView,
     ScrollView,
     StatusBar,
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -32,6 +34,12 @@ export default function ArtistProfileScreen() {
 
     const [profileData, setProfileData] = useState<ArtistProfileData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isFollowed, setIsFollowed] = useState(false);
+    const [followerCount, setFollowerCount] = useState(0);
+
+    const [modalVisible, setModalVisible] = useState(false);
+    const [followers, setFollowers] = useState<FollowerUserDTO[]>([]);
+    const [followersLoading, setFollowersLoading] = useState(false);
 
     const fetchArtistProfile = useCallback(async () => {
         if (!artistId || !Number.isFinite(artistId)) {
@@ -43,6 +51,8 @@ export default function ArtistProfileScreen() {
             setLoading(true);
             const response = await getArtistProfileAPI(artistId);
             setProfileData(response);
+            setIsFollowed(response.followed ?? false);
+            setFollowerCount(response.followerCount ?? 0);
         } catch (error) {
             console.error('Failed to load artist profile:', error);
             setProfileData(null);
@@ -79,6 +89,37 @@ export default function ArtistProfileScreen() {
                 artistName: profileData?.stageName || '',
             },
         });
+    };
+
+    const handleToggleFollow = async () => {
+        try {
+            if (isFollowed) {
+                setIsFollowed(false);
+                setFollowerCount(prev => Math.max(0, prev - 1));
+                await unfollowArtistAPI(artistId);
+            } else {
+                setIsFollowed(true);
+                setFollowerCount(prev => prev + 1);
+                await followArtistAPI(artistId);
+            }
+        } catch (error) {
+            console.error('Failed to toggle follow:', error);
+            setIsFollowed(!isFollowed);
+            setFollowerCount(prev => isFollowed ? prev + 1 : Math.max(0, prev - 1));
+        }
+    };
+
+    const handleOpenFollowers = async () => {
+        setModalVisible(true);
+        setFollowersLoading(true);
+        try {
+            const res = await getArtistFollowersAPI(artistId, 1, 50);
+            setFollowers(res.content || []);
+        } catch (error) {
+            console.error('Failed to get followers:', error);
+        } finally {
+            setFollowersLoading(false);
+        }
     };
 
     if (loading) {
@@ -145,11 +186,20 @@ export default function ArtistProfileScreen() {
                     </View>
 
                     <Text style={styles.stageName}>{profileData.stageName || 'Unknown Artist'}</Text>
+                    
+                    <TouchableOpacity 
+                        style={[styles.followButton, isFollowed && styles.followButtonActive]}
+                        onPress={handleToggleFollow}
+                    >
+                        <Text style={[styles.followButtonText, isFollowed && styles.followButtonTextActive]}>
+                            {isFollowed ? 'Following' : 'Follow'}
+                        </Text>
+                    </TouchableOpacity>
 
-                    <View style={styles.statCard}>
-                        <Text style={styles.statValue}>{profileData.followerCount || 0}</Text>
-                        <Text style={styles.statLabel}>FANS</Text>
-                    </View>
+                    <TouchableOpacity style={styles.statCard} onPress={handleOpenFollowers}>
+                        <Text style={styles.statValue}>{followerCount}</Text>
+                        <Text style={styles.statLabel}>FANS (Click to view)</Text>
+                    </TouchableOpacity>
 
                     {profileData.bio ? (
                         <View style={styles.infoCard}>
@@ -172,7 +222,7 @@ export default function ArtistProfileScreen() {
                                 </TouchableOpacity>
                             ))
                         ) : (
-                            <Text style={styles.infoText}>Artist chua co popular track.</Text>
+                            <Text style={styles.infoText}>Artist doesn't have popular track.</Text>
                         )}
                     </View>
 
@@ -190,11 +240,56 @@ export default function ArtistProfileScreen() {
                                 </TouchableOpacity>
                             ))
                         ) : (
-                            <Text style={styles.infoText}>Artist chua co album nao.</Text>
+                            <Text style={styles.infoText}>Artist doesn't have album</Text>
                         )}
                     </View>
                 </View>
             </ScrollView>
+
+            <Modal
+                visible={modalVisible}
+                animationType="slide"
+                presentationStyle="pageSheet"
+                onRequestClose={() => setModalVisible(false)}
+            >
+                <View style={styles.modalContainer}>
+                    <View style={styles.modalHeader}>
+                        <Text style={styles.modalTitle}>Followers</Text>
+                        <TouchableOpacity onPress={() => setModalVisible(false)}>
+                            <Ionicons name="close" size={28} color={Colors.white} />
+                        </TouchableOpacity>
+                    </View>
+                    
+                    {followersLoading ? (
+                        <ActivityIndicator style={styles.modalLoader} size="large" color={Colors.teal} />
+                    ) : (
+                        <FlatList
+                            data={followers}
+                            keyExtractor={item => item.id.toString()}
+                            contentContainerStyle={styles.followersList}
+                            ListEmptyComponent={
+                                <Text style={styles.emptyFollowersText}>This artist has no fans yet.</Text>
+                            }
+                            renderItem={({ item }) => (
+                                <View style={styles.followerRow}>
+                                    {item.avatarUrl ? (
+                                        <Image source={{ uri: item.avatarUrl }} style={styles.followerAvatar} />
+                                    ) : (
+                                        <View style={[styles.followerAvatar, styles.avatarFallback]}>
+                                            <Ionicons name="person" size={20} color="#555" />
+                                        </View>
+                                    )}
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.followerName}>{item.name}</Text>
+                                        <Text style={styles.followerStatus}>{item.friendStatus}</Text>
+                                    </View>
+                                </View>
+                            )}
+                        />
+                    )}
+                </View>
+            </Modal>
+
         </SafeAreaView>
     );
 }
@@ -281,6 +376,26 @@ const styles = StyleSheet.create({
         fontSize: 28,
         fontWeight: '900',
         textAlign: 'center',
+    },
+    followButton: {
+        alignSelf: 'center',
+        backgroundColor: Colors.teal,
+        paddingHorizontal: 32,
+        paddingVertical: 10,
+        borderRadius: 20,
+    },
+    followButtonActive: {
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: Colors.teal,
+    },
+    followButtonText: {
+        color: Colors.black,
+        fontSize: 14,
+        fontWeight: '800',
+    },
+    followButtonTextActive: {
+        color: Colors.teal,
     },
     statCard: {
         alignItems: 'center',
@@ -370,4 +485,55 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '700',
     },
+    modalContainer: {
+        flex: 1,
+        backgroundColor: Colors.background,
+        paddingTop: 20,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingBottom: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#222',
+    },
+    modalTitle: {
+        color: Colors.white,
+        fontSize: 20,
+        fontWeight: '800',
+    },
+    modalLoader: {
+        marginTop: 40,
+    },
+    followersList: {
+        padding: 20,
+        gap: 16,
+    },
+    emptyFollowersText: {
+        color: Colors.gray,
+        textAlign: 'center',
+        marginTop: 20,
+    },
+    followerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        paddingVertical: 4,
+    },
+    followerAvatar: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+    },
+    followerName: {
+        color: Colors.white,
+        fontSize: 15,
+        fontWeight: '600',
+    },
+    followerStatus: {
+        color: Colors.gray,
+        fontSize: 13,
+    }
 });
